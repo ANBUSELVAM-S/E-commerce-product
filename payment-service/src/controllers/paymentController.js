@@ -3,6 +3,10 @@ const axios = require('axios');
 
 const getOrderServiceUrl = () => process.env.ORDER_SERVICE_URL || 'http://localhost:5003';
 
+// ----------------------------------------------------
+// Original Custom Endpoints
+// ----------------------------------------------------
+
 // POST /api/payments/initiate
 const initiatePayment = async (req, res) => {
   try {
@@ -66,7 +70,6 @@ const confirmPayment = async (req, res) => {
       await axios.patch(`${getOrderServiceUrl()}/api/orders/${transaction.orderId}/pay`);
     } catch (err) {
       console.error(`Failed to update order ${transaction.orderId} status:`, err.message);
-      // Note: we continue execution so we return the success message to client
     }
 
     res.json(updatedTransaction);
@@ -99,21 +102,6 @@ const failPayment = async (req, res) => {
   }
 };
 
-// GET /api/payments/:transactionId
-const getTransactionById = async (req, res) => {
-  try {
-    const transaction = await Transaction.findOne({ transactionId: req.params.transactionId });
-
-    if (transaction) {
-      res.json(transaction);
-    } else {
-      res.status(404).json({ message: 'Transaction not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 // GET /api/payments/order/:orderId
 const getTransactionsByOrderId = async (req, res) => {
   try {
@@ -124,10 +112,102 @@ const getTransactionsByOrderId = async (req, res) => {
   }
 };
 
+
+// ----------------------------------------------------
+// Standard CRUD Endpoints
+// ----------------------------------------------------
+
+// POST /api/payments
+const createPayment = async (req, res) => {
+  try {
+    const { orderId, amount, method } = req.body;
+    
+    if (!orderId || amount === undefined || !method) {
+      return res.status(400).json({ message: 'orderId, amount, and method are required' });
+    }
+
+    const transaction = new Transaction(req.body);
+    const savedTransaction = await transaction.save();
+    res.status(201).json(savedTransaction);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET /api/payments
+const getAllPayments = async (req, res) => {
+  try {
+    const transactions = await Transaction.find({}).sort({ createdAt: -1 });
+    res.json(transactions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET /api/payments/:id
+const getPaymentById = async (req, res) => {
+  try {
+    let query = { $or: [{ _id: req.params.id }, { transactionId: req.params.id }] };
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+        query = { transactionId: req.params.id };
+    }
+    const transaction = await Transaction.findOne(query);
+    if (transaction) {
+      res.json(transaction);
+    } else {
+      res.status(404).json({ message: 'Payment not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PUT /api/payments/:id
+const updatePayment = async (req, res) => {
+  try {
+    let query = { $or: [{ _id: req.params.id }, { transactionId: req.params.id }] };
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+        query = { transactionId: req.params.id };
+    }
+
+    const transaction = await Transaction.findOneAndUpdate(query, req.body, { new: true, runValidators: true });
+    if (transaction) {
+      res.json(transaction);
+    } else {
+      res.status(404).json({ message: 'Payment not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE /api/payments/:id
+const deletePayment = async (req, res) => {
+  try {
+    let query = { $or: [{ _id: req.params.id }, { transactionId: req.params.id }] };
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+        query = { transactionId: req.params.id };
+    }
+
+    const transaction = await Transaction.findOneAndDelete(query);
+    if (transaction) {
+      res.json({ message: 'Payment deleted successfully' });
+    } else {
+      res.status(404).json({ message: 'Payment not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   initiatePayment,
   confirmPayment,
   failPayment,
-  getTransactionById,
-  getTransactionsByOrderId
+  getTransactionsByOrderId,
+  createPayment,
+  getAllPayments,
+  getPaymentById,
+  updatePayment,
+  deletePayment
 };

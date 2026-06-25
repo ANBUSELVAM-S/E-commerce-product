@@ -4,14 +4,28 @@ const {
   initiatePayment,
   confirmPayment,
   failPayment,
-  getTransactionById,
-  getTransactionsByOrderId
+  getTransactionsByOrderId,
+  createPayment,
+  getAllPayments,
+  getPaymentById,
+  updatePayment,
+  deletePayment
 } = require('../controllers/paymentController');
 
+// Custom Actions
 router.post('/initiate', initiatePayment);
 router.post('/confirm', confirmPayment);
 router.post('/fail', failPayment);
 router.get('/order/:orderId', getTransactionsByOrderId);
-router.get('/:transactionId', getTransactionById);
+
+// Standard CRUD Operations
+router.route('/')
+  .post(createPayment)
+  .get(getAllPayments);
+
+router.route('/:id')
+  .get(getPaymentById)
+  .put(updatePayment)
+  .delete(deletePayment);
 
 module.exports = router;
