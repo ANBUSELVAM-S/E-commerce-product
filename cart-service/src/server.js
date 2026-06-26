@@ -21,6 +21,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'cart-service' });
 });
 
+app.get('/test', (req, res) => {
+  res.send('Server Working');
+});
+
 const PORT = process.env.PORT || 5002;
 
 app.listen(PORT, () => {

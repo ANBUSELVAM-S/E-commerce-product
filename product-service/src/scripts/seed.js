@@ -108,7 +108,7 @@ const seedDB = async () => {
 
     process.exit(0);
   } catch (error) {
-    console.error('Error seeding data:', error);
+    console.error('Error se//eding data:', error);
     process.exit(1);
   }
 };
