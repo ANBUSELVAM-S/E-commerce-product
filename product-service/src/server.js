@@ -2,10 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const path = require('path');
 const connectDB = require('./config/db');
 const productRoutes = require('./routes/productRoutes');
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+process.env.PORT = process.env.PRODUCT_PORT || 5001;
+process.env.MONGO_URI = process.env.PRODUCT_MONGO_URI;
 
 connectDB();
 
@@ -21,7 +24,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'product-service' });
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = 5001;
 
 app.listen(PORT, () => {
   console.log(`Product service running on port ${PORT}`);

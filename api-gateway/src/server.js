@@ -2,7 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
+process.env.PORT = process.env.GATEWAY_PORT || 5000;
 
 const app = express();
 

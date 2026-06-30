@@ -2,10 +2,11 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const Product = require('../models/Product');
 
-// Load env vars from product-service root
-dotenv.config({ path: __dirname + '/../../.env' });
+const path = require('path');
+// Load env vars from ecommerce-backend root
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/product_db';
+const MONGO_URI = process.env.PRODUCT_MONGO_URI || 'mongodb://localhost:27017/product_db';
 
 const products = [
   // Electronics
