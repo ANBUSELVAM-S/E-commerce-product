@@ -44,6 +44,21 @@ app.use('/api/payments', createProxyMiddleware({
   ...proxyOptions
 }));
 
+app.use('/api/search', createProxyMiddleware({
+  target: 'http://localhost:5005',
+  ...proxyOptions
+}));
+
+app.use('/api/notifications', createProxyMiddleware({
+  target: 'http://localhost:5006',
+  ...proxyOptions
+}));
+
+app.use('/api/inventory', createProxyMiddleware({
+  target: 'http://localhost:5007',
+  ...proxyOptions
+}));
+
 // 4. Health check endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -53,7 +68,10 @@ app.get('/', (req, res) => {
       products: 'http://localhost:5001',
       cart: 'http://localhost:5002',
       orders: 'http://localhost:5003',
-      payments: 'http://localhost:5004'
+      payments: 'http://localhost:5004',
+      search: 'http://localhost:5005',
+      notifications: 'http://localhost:5006',
+      inventory: 'http://localhost:5007'
     }
   });
 });

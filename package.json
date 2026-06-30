@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Root project to run all microservices",
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix product-service\" \"npm run dev --prefix cart-service\" \"npm run dev --prefix order-service\" \"npm run dev --prefix payment-service\" \"npm run dev --prefix api-gateway\""
+    "dev": "concurrently \"npm run dev --prefix product-service\" \"npm run dev --prefix cart-service\" \"npm run dev --prefix order-service\" \"npm run dev --prefix payment-service\" \"npm run dev --prefix search-service\" \"npm run dev --prefix notification-service\" \"npm run dev --prefix inventory-service\" \"npm run dev --prefix api-gateway\""
   },
   "dependencies": {
     "concurrently": "^8.2.2"
