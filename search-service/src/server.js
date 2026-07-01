@@ -3,6 +3,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
+const serverless = require("serverless-http");
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 process.env.PORT = process.env.SEARCH_PORT || 5005;
@@ -27,8 +28,10 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT;
 
-app.listen(PORT, () => {
-  console.log(`Search service running on port ${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`Search service running on port ${PORT}`);
+// });
 
-module.exports = app;
+// module.exports = app;
+
+module.exports.handler = serverless(app);

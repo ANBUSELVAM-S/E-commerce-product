@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const morgan = require('morgan');
+const serverless = require("serverless-http");
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 process.env.PORT = process.env.PAYMENT_PORT || 5004;
@@ -29,6 +30,8 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 5004;
 
-app.listen(PORT, () => {
-    console.log(`Payment Service Running On Port ${PORT}`);
-});
+// app.listen(PORT, () => {
+//     console.log(`Payment Service Running On Port ${PORT}`);
+// });
+
+module.exports.handler = serverless(app);

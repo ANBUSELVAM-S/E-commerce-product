@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
 const cartRoutes = require('./routes/cartRoutes');
+const serverless = require("serverless-http");
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 process.env.PORT = process.env.CART_PORT || 5002;
@@ -35,3 +36,5 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
+module.exports.handler = serverless(app);

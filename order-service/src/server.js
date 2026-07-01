@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
 const orderRoutes = require('./routes/orderRoutes');
+const serverless = require("serverless-http");
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 process.env.PORT = process.env.ORDER_PORT || 5003;
@@ -26,8 +27,10 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 5003;
 
-app.listen(PORT, () => {
-  console.log(`Order service running on port ${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`Order service running on port ${PORT}`);
+// });
 
-module.exports = app;
+// module.exports = app;
+
+module.exports.handler = serverless(app);

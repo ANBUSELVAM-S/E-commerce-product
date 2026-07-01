@@ -1,5 +1,5 @@
 const Cart = require('../models/Cart');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 // Calculate subtotal
 const calculateSubtotal = (items) => {
@@ -10,7 +10,7 @@ const calculateSubtotal = (items) => {
 const createCart = async (req, res) => {
   try {
     const cart = new Cart({
-      cartId: uuidv4(),
+      cartId: crypto.randomUUID(),
       items: []
     });
 
