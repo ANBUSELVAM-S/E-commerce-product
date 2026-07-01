@@ -1,13 +1,12 @@
-const mongoose = require('mongoose');
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { DynamoDBDocumentClient } = require("@aws-sdk/lib-dynamodb");
 
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`Error: ${error.message}`);
-    process.exit(1);
-  }
-};
+const client = new DynamoDBClient({
+  region: process.env.AWS_REGION
+});
 
-module.exports = connectDB;
+const dynamoDB = DynamoDBDocumentClient.from(client);
+
+console.log(`DynamoDB Client Initialized (${process.env.AWS_REGION})`);
+
+module.exports = dynamoDB;

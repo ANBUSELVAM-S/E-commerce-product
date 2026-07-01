@@ -9,9 +9,9 @@ const serverless = require("serverless-http");
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 process.env.PORT = process.env.ORDER_PORT || 5003;
-process.env.MONGO_URI = process.env.ORDER_MONGO_URI;
+process.env.PORT = process.env.ORDER_TABLE;
 
-connectDB();
+// connectDB();
 
 const app = express();
 

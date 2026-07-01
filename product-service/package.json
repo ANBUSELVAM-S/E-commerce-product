@@ -8,10 +8,11 @@
     "dev": "nodemon src/server.js"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1077.0",
+    "@aws-sdk/lib-dynamodb": "^3.1077.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "mongoose": "^8.9.5",
     "morgan": "^1.10.0",
     "serverless-http": "^4.0.0"
   },

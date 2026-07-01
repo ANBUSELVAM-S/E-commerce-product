@@ -1,187 +1,342 @@
-const Order = require('../models/Order');
-const axios = require('axios');
+const axios = require("axios");
+const { randomUUID } = require("crypto");
+
+const dynamoDB = require("../config/db");
+
+const {
+  PutCommand,
+  GetCommand,
+  ScanCommand,
+  UpdateCommand,
+  DeleteCommand
+} = require("@aws-sdk/lib-dynamodb");
+
+const TABLE_NAME = process.env.ORDER_TABLE;
 
 // Helper to get service URLs
-const getCartServiceUrl = () => process.env.CART_SERVICE_URL || 'http://localhost:5002';
-const getProductServiceUrl = () => process.env.PRODUCT_SERVICE_URL || 'http://localhost:5001';
+const getCartServiceUrl = () =>
+  process.env.CART_SERVICE_URL || "http://localhost:5002";
 
+const getProductServiceUrl = () =>
+  process.env.PRODUCT_SERVICE_URL || "http://localhost:5001";
+
+// =====================================================
+// CREATE ORDER
 // POST /api/orders
+// =====================================================
+
 const createOrder = async (req, res) => {
   try {
     const { cartId, shippingAddress } = req.body;
 
     if (!cartId || !shippingAddress) {
-      return res.status(400).json({ message: 'cartId and shippingAddress are required' });
+      return res.status(400).json({
+        message: "cartId and shippingAddress are required",
+      });
     }
 
-    // 1. Call GET http://localhost:5002/api/cart/:cartId/summary
+    // Get cart details
     let cartResponse;
+
     try {
-      cartResponse = await axios.get(`${getCartServiceUrl()}/api/cart/${cartId}/summary`);
+      cartResponse = await axios.get(
+        `${getCartServiceUrl()}/api/cart/${cartId}/summary`
+      );
     } catch (err) {
       if (err.response && err.response.status === 404) {
-         return res.status(404).json({ message: 'Cart not found' });
+        return res.status(404).json({
+          message: "Cart not found",
+        });
       }
+
       throw new Error(`Failed to fetch cart: ${err.message}`);
     }
 
     const cartData = cartResponse.data;
 
-    // 2. Validate cart is not empty
+    // Validate cart
     if (!cartData.items || cartData.items.length === 0) {
-      return res.status(400).json({ message: 'Cart is empty' });
+      return res.status(400).json({
+        message: "Cart is empty",
+      });
     }
 
-    // 3. Calculate totalAmount = subtotal + shippingCharge
     const subtotal = cartData.subtotal;
     const shippingCharge = 50;
     const totalAmount = subtotal + shippingCharge;
 
-    // 4. Create Order document
-    const order = new Order({
+    const order = {
+      orderId: randomUUID(),
       cartId,
       items: cartData.items,
       subtotal,
       shippingCharge,
       totalAmount,
       shippingAddress,
-      status: 'pending',
-      paymentStatus: 'unpaid'
-    });
+      status: "pending",
+      paymentStatus: "unpaid",
+      createdAt: new Date().toISOString(),
+    };
 
-    const savedOrder = await order.save();
+    await dynamoDB.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: order,
+      })
+    );
 
-    // 5. Call PATCH http://localhost:5001/api/products/:id/stock for each item
-    const productPromises = cartData.items.map(item => {
-      return axios.patch(`${getProductServiceUrl()}/api/products/${item.productId}/stock`, {
-        decrement: item.quantity
-      });
-    });
-
+    // Update Product Stock
     try {
+      const productPromises = cartData.items.map((item) =>
+        axios.patch(
+          `${getProductServiceUrl()}/api/products/${item.productId}/stock`,
+          {
+            decrement: item.quantity,
+          }
+        )
+      );
+
       await Promise.all(productPromises);
     } catch (err) {
-      console.error('Failed to update product stock:', err.message);
-      // Log the error, but order is already saved.
+      console.error("Failed to update product stock:", err.message);
     }
 
-    // 6. Call DELETE http://localhost:5002/api/cart/:cartId/clear
+    // Clear Cart
     try {
-       await axios.delete(`${getCartServiceUrl()}/api/cart/${cartId}/clear`);
+      await axios.delete(
+        `${getCartServiceUrl()}/api/cart/${cartId}/clear`
+      );
     } catch (err) {
-       console.error('Failed to clear cart:', err.message);
+      console.error("Failed to clear cart:", err.message);
     }
 
-    // 7. Return the created order
-    res.status(201).json(savedOrder);
+    return res.status(201).json(order);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
 
+// =====================================================
+// GET ALL ORDERS
 // GET /api/orders
+// =====================================================
+
 const getOrders = async (req, res) => {
   try {
-    const { status } = req.query;
-    let query = {};
-    if (status) {
-      query.status = status;
+    const result = await dynamoDB.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+      })
+    );
+
+    let orders = result.Items || [];
+
+    if (req.query.status) {
+      orders = orders.filter(
+        (order) => order.status === req.query.status
+      );
     }
 
-    const orders = await Order.find(query).sort({ createdAt: -1 });
-    res.json(orders);
+    orders.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    return res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
 
+// =====================================================
+// GET ORDER BY ID
 // GET /api/orders/:id
+// =====================================================
+
 const getOrderById = async (req, res) => {
   try {
-    // Check if the id is a valid mongo ObjectId or an orderId string
-    let query = { $or: [{ _id: req.params.id }, { orderId: req.params.id }] };
-    
-    // Mongoose will throw cast error if we pass an invalid ObjectId, handle gracefully
-    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-        query = { orderId: req.params.id };
+    const { id } = req.params;
+
+    const result = await dynamoDB.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          orderId: id,
+        },
+      })
+    );
+
+    if (!result.Item) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
     }
 
-    const order = await Order.findOne(query);
-
-    if (order) {
-      res.json(order);
-    } else {
-      res.status(404).json({ message: 'Order not found' });
-    }
+    return res.json(result.Item);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
 
+// =====================================================
+// DELETE ORDER
 // DELETE /api/orders/:id
+// =====================================================
+
 const deleteOrder = async (req, res) => {
   try {
-     let query = { $or: [{ _id: req.params.id }, { orderId: req.params.id }] };
-     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-         query = { orderId: req.params.id };
-     }
+    const { id } = req.params;
 
-    const order = await Order.findOneAndDelete(query);
-    if (order) {
-      res.json({ message: 'Order deleted successfully' });
-    } else {
-      res.status(404).json({ message: 'Order not found' });
+    const existing = await dynamoDB.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          orderId: id,
+        },
+      })
+    );
+
+    if (!existing.Item) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
     }
+
+    await dynamoDB.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          orderId: id,
+        },
+      })
+    );
+
+    return res.json({
+      message: "Order deleted successfully",
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
 
+// =====================================================
+// CANCEL ORDER
 // PUT /api/orders/:id/cancel
+// =====================================================
+
 const cancelOrder = async (req, res) => {
   try {
-    let query = { $or: [{ _id: req.params.id }, { orderId: req.params.id }] };
-    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-        query = { orderId: req.params.id };
-    }
+    const { id } = req.params;
 
-    const order = await Order.findOne(query);
+    const result = await dynamoDB.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          orderId: id,
+        },
+      })
+    );
+
+    const order = result.Item;
 
     if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
+      return res.status(404).json({
+        message: "Order not found",
+      });
     }
 
-    if (order.status !== 'pending') {
-      return res.status(400).json({ message: `Cannot cancel order with status: ${order.status}` });
+    if (order.status !== "pending") {
+      return res.status(400).json({
+        message: `Cannot cancel order with status: ${order.status}`,
+      });
     }
 
-    order.status = 'cancelled';
-    const updatedOrder = await order.save();
+    const updated = await dynamoDB.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          orderId: id,
+        },
+        UpdateExpression: "SET #status = :status",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":status": "cancelled",
+        },
+        ReturnValues: "ALL_NEW",
+      })
+    );
 
-    res.json(updatedOrder);
+    return res.json(updated.Attributes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
 
+// =====================================================
+// PAY ORDER
 // PATCH /api/orders/:orderId/pay
+// =====================================================
+
 const payOrder = async (req, res) => {
   try {
-    const order = await Order.findOne({ orderId: req.params.orderId });
+    const { orderId } = req.params;
 
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
+    const result = await dynamoDB.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          orderId,
+        },
+      })
+    );
+
+    if (!result.Item) {
+      return res.status(404).json({
+        message: "Order not found",
+      });
     }
 
-    order.paymentStatus = 'paid';
-    order.status = 'confirmed';
-    
-    const updatedOrder = await order.save();
-    res.json(updatedOrder);
+    const updated = await dynamoDB.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          orderId,
+        },
+        UpdateExpression:
+          "SET paymentStatus = :paid, #status = :confirmed",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":paid": "paid",
+          ":confirmed": "confirmed",
+        },
+        ReturnValues: "ALL_NEW",
+      })
+    );
+
+    return res.json(updated.Attributes);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message,
+    });
   }
 };
+
+// =====================================================
+// EXPORTS
+// =====================================================
 
 module.exports = {
   createOrder,
@@ -189,5 +344,5 @@ module.exports = {
   getOrderById,
   deleteOrder,
   cancelOrder,
-  payOrder
+  payOrder,
 };
