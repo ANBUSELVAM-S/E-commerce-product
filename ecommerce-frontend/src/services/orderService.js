@@ -5,8 +5,9 @@ export const createOrder = async (orderData) => {
   return response.data;
 };
 
-export const getOrders = async () => {
-  const response = await api.get('api/orders');
+export const getOrders = async (userId = null) => {
+  const query = userId ? `?userId=${userId}` : '';
+  const response = await api.get(`api/orders${query}`);
   return response.data;
 };
 

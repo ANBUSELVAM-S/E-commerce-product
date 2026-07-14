@@ -21,8 +21,15 @@ import PaymentsList from './pages/PaymentsList';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import ConfirmSignup from './pages/ConfirmSignup';
+import AdminDashboard from './pages/AdminDashboard';
 import { useAuth } from './context/AuthContext';
 import { Navigate } from 'react-router-dom';
+
+const ProtectedRoute = ({ children }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+};
 
 const ProtectedAdminRoute = ({ children }) => {
   const { user } = useAuth();
@@ -47,17 +54,29 @@ function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/products/:id" element={<ProductDetails />} />
                   <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/payment/:orderId" element={<Payment />} />
-                  <Route path="/payment-success" element={<PaymentSuccess />} />
-                  <Route path="/orders" element={<Orders />} />
-                  <Route path="/notifications" element={<Notifications />} />
-                  <Route path="/payments" element={<PaymentsList />} />
+                  
+                  {/* Protected User Routes */}
+                  <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+                  <Route path="/payment/:orderId" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+                  <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
+                  <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+                  <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                  <Route path="/payments" element={<ProtectedRoute><PaymentsList /></ProtectedRoute>} />
+                  
+                  {/* Protected Admin Route */}
                   <Route 
                     path="/admin/add-product" 
                     element={
                       <ProtectedAdminRoute>
                         <AdminAddProduct />
+                      </ProtectedAdminRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin/dashboard" 
+                    element={
+                      <ProtectedAdminRoute>
+                        <AdminDashboard />
                       </ProtectedAdminRoute>
                     } 
                   />

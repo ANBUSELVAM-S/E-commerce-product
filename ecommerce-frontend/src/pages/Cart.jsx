@@ -40,7 +40,8 @@ const Cart = () => {
                   <Row className="align-items-center">
                     <Col xs={3} md={2}>
                       <Image 
-                        src={`https://via.placeholder.com/100x100?text=${encodeURIComponent(item.name.substring(0,3))}`} 
+                        src={item.imageUrl || `https://via.placeholder.com/300x400/f5f5f5/333333?text=${encodeURIComponent(item.name)}`} 
+                        
                         rounded 
                         fluid 
                       />
@@ -79,7 +80,7 @@ const Cart = () => {
               <h4 className="fw-bold mb-4">Order Summary</h4>
               <div className="d-flex justify-content-between mb-3">
                 <span>Subtotal ({cart.items.length} items)</span>
-                <span className="fw-bold">${cart.totalPrice?.toFixed(2) || '0.00'}</span>
+                <span className="fw-bold">${cart.totalPrice?.toFixed(2) || '50.00'}</span>
               </div>
               <div className="d-flex justify-content-between mb-3 text-muted">
                 <span>Shipping</span>
@@ -88,7 +89,7 @@ const Cart = () => {
               <hr />
               <div className="d-flex justify-content-between mb-4">
                 <span className="fw-bold fs-5">Estimated Total</span>
-                <span className="fw-bold fs-5 text-success">${cart.totalPrice?.toFixed(2) || '0.00'}</span>
+                <span className="fw-bold fs-5 text-success">${cart.totalPrice?.toFixed(2) || '50.00'}</span>
               </div>
               <div className="d-grid">
                 <Button 

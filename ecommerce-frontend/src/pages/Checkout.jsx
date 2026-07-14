@@ -8,7 +8,7 @@ import { toast } from 'react-toastify';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Checkout = () => {
-  const { cartId } = useAuth();
+  const { cartId, userId } = useAuth();
   const { cart, loading: cartLoading, fetchCart } = useCart();
   const navigate = useNavigate();
   
@@ -45,6 +45,7 @@ const Checkout = () => {
       
       const orderData = {
         cartId,
+        userId,
         shippingAddress: formData
       };
       

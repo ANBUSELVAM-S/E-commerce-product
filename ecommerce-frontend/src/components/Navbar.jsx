@@ -1,5 +1,5 @@
 import React from 'react';
-import { Container, Nav, Navbar, Badge } from 'react-bootstrap';
+import { Container, Nav, Navbar, Badge, NavDropdown } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FiShoppingCart, FiSearch, FiUser } from 'react-icons/fi';
 import { useCart } from '../context/CartContext';
@@ -22,13 +22,22 @@ const NavigationBar = () => {
           {/* Centered Links */}
           <Nav className="mx-auto">
             <Nav.Link as={Link} to="/" className="dream-nav-link">Home</Nav.Link>
-            <Nav.Link as={Link} to="/orders" className="dream-nav-link">Order</Nav.Link>
-            <Nav.Link as={Link} to="/payments" className="dream-nav-link">Payment</Nav.Link>
+            {user?.role !== 'admin' && (
+              <>
+                <Nav.Link as={Link} to="/orders" className="dream-nav-link">Order</Nav.Link>
+                <Nav.Link as={Link} to="/payments" className="dream-nav-link">Payment</Nav.Link>
+              </>
+            )}
             <Nav.Link as={Link} to="/footer" className="dream-nav-link">Contact</Nav.Link>
             {user?.role === 'admin' && (
-              <Nav.Link as={Link} to="/admin/add-product" className="dream-nav-link fw-bold">
-                Add Product
-              </Nav.Link>
+              <>
+                <Nav.Link as={Link} to="/admin/add-product" className="dream-nav-link fw-bold text-success">
+                  Add Product
+                </Nav.Link>
+                <Nav.Link as={Link} to="/admin/dashboard" className="dream-nav-link fw-bold text-danger">
+                  Admin Dashboard
+                </Nav.Link>
+              </>
             )}
           </Nav>
 
@@ -44,15 +53,23 @@ const NavigationBar = () => {
                 </Link>
               </div>
             ) : (
-              <div className="d-flex align-items-center gap-3">
-                <span className="text-muted small">Hi, {user.role}</span>
-                <span 
-                  onClick={logout} 
-                  className="text-dark text-decoration-none" 
-                  style={{ fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              <div className="d-flex align-items-center">
+                <FiUser size={22} className="me-1" />
+                <NavDropdown 
+                  title={<span style={{ fontSize: '13px', fontWeight: 600 }}>{user.email || 'Profile'}</span>} 
+                  id="user-nav-dropdown" 
+                  align="end"
                 >
-                  LOG OUT
-                </span>
+                  <NavDropdown.ItemText className="text-muted small">Role: {user.role}</NavDropdown.ItemText>
+                  <NavDropdown.Divider />
+                  <NavDropdown.Item 
+                    onClick={logout} 
+                    className="text-danger" 
+                    style={{ fontSize: '13px', fontWeight: 600 }}
+                  >
+                    LOG OUT
+                  </NavDropdown.Item>
+                </NavDropdown>
               </div>
             )}
             {/* <Nav.Link href="#" className="text-dark">

@@ -32,12 +32,22 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('tokens', JSON.stringify(tokens));
+    
+    // Tie cart to user ID
+    const newCartId = `cart_${userData.userId}`;
+    setCartId(newCartId);
+    localStorage.setItem('cartId', newCartId);
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');
     localStorage.removeItem('tokens');
+    
+    // Reset cart to a new guest cart
+    const newCartId = `cart_${uuidv4().substring(0,8)}`;
+    setCartId(newCartId);
+    localStorage.setItem('cartId', newCartId);
   };
 
   if (loading) {
