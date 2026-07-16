@@ -1,3 +1,4 @@
+
 const axios = require("axios");
 const { randomUUID } = require("crypto");
 
@@ -25,7 +26,7 @@ const getInventoryServiceUrl = () =>
 // ----------------------------------------------------
 const createOrder = async (req, res) => {
   try {
-    const { cartId, shippingAddress } = req.body;
+    const { cartId, shippingAddress, userId } = req.body;
 
     if (!cartId || !shippingAddress) {
       return res.status(400).json({
@@ -65,6 +66,7 @@ const createOrder = async (req, res) => {
     const order = {
       orderId: randomUUID(),
       cartId,
+      userId: userId || null,
       items: cartData.items,
       subtotal,
       shippingCharge,
@@ -135,6 +137,12 @@ const getOrders = async (req, res) => {
     if (req.query.status) {
       orders = orders.filter(
         (order) => order.status === req.query.status
+      );
+    }
+
+    if (req.query.userId) {
+      orders = orders.filter(
+        (order) => order.userId === req.query.userId
       );
     }
 

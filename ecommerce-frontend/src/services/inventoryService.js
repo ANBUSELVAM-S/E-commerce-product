@@ -14,3 +14,13 @@ export const getLowStock = async () => {
   const response = await api.get('api/inventory/low-stock');
   return response.data;
 };
+
+export const adjustStock = async (productId, data) => {
+  const response = await api.patch(`api/inventory/${productId}/adjust`, data);
+  return response.data;
+};
+
+export const updateInventory = async (productId, data) => {
+  const response = await api.put(`api/inventory/${productId}`, data);
+  return response.data;
+};

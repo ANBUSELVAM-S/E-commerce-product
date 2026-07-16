@@ -17,6 +17,8 @@ import PaymentSuccess from './pages/PaymentSuccess';
 import Orders from './pages/Orders';
 import Notifications from './pages/Notifications';
 import AdminAddProduct from './pages/AdminAddProduct';
+import AdminInventory from './pages/AdminInventory';
+import AdminUsers from './pages/AdminUsers';
 import PaymentsList from './pages/PaymentsList';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -77,6 +79,22 @@ function App() {
                     element={
                       <ProtectedAdminRoute>
                         <AdminDashboard />
+                      </ProtectedAdminRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin/inventory" 
+                    element={
+                      <ProtectedAdminRoute>
+                        <AdminInventory />
+                      </ProtectedAdminRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin/users" 
+                    element={
+                      <ProtectedAdminRoute>
+                        <AdminUsers />
                       </ProtectedAdminRoute>
                     } 
                   />

@@ -9,12 +9,12 @@ const AdminAddProduct = () => {
     name: '',
     description: '',
     price: '',
-    category: 'Womens', 
+    category: 'Books', 
     stock: '',
     imageUrl: ''
   });
 
-  const categories = ['Womens', 'Mens', 'Accessories', 'Shoes'];
+  const categories = ['Accessories', 'Shoes','Books','Clothing','Electronics'];
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

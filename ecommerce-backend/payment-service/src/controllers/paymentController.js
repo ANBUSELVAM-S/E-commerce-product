@@ -18,48 +18,52 @@ const {
 
 const TABLE_NAME = process.env.PAYMENT_TABLE;
 
-// Helper
 const getOrderServiceUrl = () => process.env.ORDER_SERVICE_URL;
 
 // ----------------------------------------------------
 // POST /api/payments/initiate
 // ----------------------------------------------------
 const initiatePayment = async (req, res) => {
-
   try {
-
-
     const { orderId, method } = req.body;
 
-    const orderResponse = await axios.get(
-      `${getOrderServiceUrl()}/api/orders/${orderId}`
-  );
-  
-  const order = orderResponse.data;
-
-    if (!orderId  || !method) {
+    if (!orderId || !method) {
       return res.status(400).json({
-        message: "orderId, amount, and method are required"
+        message: "orderId and method are required"
       });
     }
 
-    const validMethods = [
-      "card",
-      "upi",
-      "netbanking",
-      "cod"
-    ];
-
+    const validMethods = ["card", "upi", "netbanking", "cod"];
     if (!validMethods.includes(method)) {
       return res.status(400).json({
         message: `Invalid method. Must be one of: ${validMethods.join(", ")}`
       });
     }
 
+    let orderResponse;
+    try {
+      orderResponse = await axios.get(
+        `${getOrderServiceUrl()}/api/orders/${orderId}`
+      );
+    } catch (err) {
+      if (err.response?.status === 404) {
+        return res.status(404).json({
+          message: "Order not found"
+        });
+      }
+
+      return res.status(500).json({
+        message: err.response?.data?.message || err.message
+      });
+    }
+
+    const order = orderResponse.data;
+
     const transaction = {
       transactionId: randomUUID(),
       orderId: order.orderId,
       cartId: order.cartId,
+      userId: order.userId || null,
       items: order.items,
       subtotal: order.subtotal,
       shippingCharge: order.shippingCharge,
@@ -68,7 +72,7 @@ const initiatePayment = async (req, res) => {
       method,
       status: "pending",
       createdAt: new Date().toISOString()
-  };
+    };
 
     await dynamoDB.send(
       new PutCommand({
@@ -77,27 +81,20 @@ const initiatePayment = async (req, res) => {
       })
     );
 
-    res.status(201).json(transaction);
-
+    return res.status(201).json(transaction);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
 // POST /api/payments/confirm
 // ----------------------------------------------------
 const confirmPayment = async (req, res) => {
-
   try {
-
     const { transactionId } = req.body;
-
 
     if (!transactionId) {
       return res.status(400).json({
@@ -134,8 +131,7 @@ const confirmPayment = async (req, res) => {
         Key: {
           transactionId
         },
-        UpdateExpression:
-          "SET #status=:status, paidAt=:paidAt",
+        UpdateExpression: "SET #status = :status, paidAt = :paidAt",
         ExpressionAttributeNames: {
           "#status": "status"
         },
@@ -147,81 +143,57 @@ const confirmPayment = async (req, res) => {
       })
     );
 
-    // Update Order Service
     try {
-
-      console.log("Calling Order Service...");
-console.log(transaction.orderId);
-console.log(getOrderServiceUrl());
-    
       const response = await axios.patch(
         `${getOrderServiceUrl()}/api/orders/${transaction.orderId}/pay`
       );
-    
       console.log("Order Updated:", response.data);
-    
     } catch (err) {
-    
-      console.log("Status:", err.response?.status);
-      console.log("Data:", err.response?.data);
-      console.log("Message:", err.message);
-    
+      console.error("Order update failed:", err.response?.data || err.message);
+      return res.status(500).json({
+        message: "Payment confirmed, but order update failed"
+      });
     }
 
-    // ==========================
-    // Publish SNS Notification
-    // ==========================
     try {
-
       await sns.send(
         new PublishCommand({
           TopicArn: process.env.SNS_TOPIC_ARN,
           Subject: "Payment Successful",
           Message: `
-      Hello,
-      
-      Your payment has been completed successfully.
-      
-      Transaction ID : ${transactionId}
-      Order ID       : ${transaction.orderId}
-      Amount         : ₹${transaction.amount}
-      Payment Status : Success
-      
-      Thank you for shopping with us!
-      
-      Regards,
-      E-Commerce Team
-      `
+Hello,
+
+Your payment has been completed successfully.
+
+Transaction ID : ${transactionId}
+Order ID       : ${transaction.orderId}
+Amount         : ₹${transaction.amount}
+Payment Status : Success
+
+Thank you for shopping with us!
+
+Regards,
+E-Commerce Team
+          `
         })
       );
-
     } catch (err) {
-
-      console.error(
-        "Failed to publish SNS:",
-        err.message
-      );
-
+      console.error("Failed to publish SNS:", err.message);
     }
 
-    res.json(result.Attributes);
-
+    return res.json(result.Attributes);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
+
 // ----------------------------------------------------
 // POST /api/payments/fail
 // ----------------------------------------------------
 const failPayment = async (req, res) => {
-
   try {
-
     const { transactionId } = req.body;
 
     if (!transactionId) {
@@ -251,8 +223,7 @@ const failPayment = async (req, res) => {
         Key: {
           transactionId
         },
-        UpdateExpression:
-          "SET #status=:status",
+        UpdateExpression: "SET #status = :status",
         ExpressionAttributeNames: {
           "#status": "status"
         },
@@ -263,25 +234,19 @@ const failPayment = async (req, res) => {
       })
     );
 
-    res.json(result.Attributes);
-
+    return res.json(result.Attributes);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
 // GET /api/payments/order/:orderId
 // ----------------------------------------------------
 const getTransactionsByOrderId = async (req, res) => {
-
   try {
-
     const data = await dynamoDB.send(
       new ScanCommand({
         TableName: TABLE_NAME
@@ -289,34 +254,22 @@ const getTransactionsByOrderId = async (req, res) => {
     );
 
     const transactions = (data.Items || [])
-      .filter(
-        item => item.orderId === req.params.orderId
-      )
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt) -
-          new Date(a.createdAt)
-      );
+      .filter((item) => item.orderId === req.params.orderId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    res.json(transactions);
-
+    return res.json(transactions);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
 // POST /api/payments
 // ----------------------------------------------------
 const createPayment = async (req, res) => {
-
   try {
-
     const { orderId, amount, method } = req.body;
 
     if (!orderId || amount === undefined || !method) {
@@ -342,56 +295,50 @@ const createPayment = async (req, res) => {
       })
     );
 
-    res.status(201).json(transaction);
-
+    return res.status(201).json(transaction);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
 // GET /api/payments
 // ----------------------------------------------------
 const getAllPayments = async (req, res) => {
-
   try {
-
     const data = await dynamoDB.send(
       new ScanCommand({
         TableName: TABLE_NAME
       })
     );
 
-    const payments = (data.Items || []).sort(
-      (a, b) =>
-        new Date(b.createdAt) -
-        new Date(a.createdAt)
+    let payments = data.Items || [];
+
+    if (req.query.userId) {
+      payments = payments.filter(
+        (payment) => payment.userId === req.query.userId
+      );
+    }
+
+    payments = payments.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
     );
 
-    res.json(payments);
-
+    return res.json(payments);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
 // GET /api/payments/:id
 // ----------------------------------------------------
 const getPaymentById = async (req, res) => {
-
   try {
-
     const result = await dynamoDB.send(
       new GetCommand({
         TableName: TABLE_NAME,
@@ -407,25 +354,19 @@ const getPaymentById = async (req, res) => {
       });
     }
 
-    res.json(result.Item);
-
+    return res.json(result.Item);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
 // PUT /api/payments/:id
 // ----------------------------------------------------
 const updatePayment = async (req, res) => {
-
   try {
-
     const transactionId = req.params.id;
 
     const existing = await dynamoDB.send(
@@ -444,22 +385,25 @@ const updatePayment = async (req, res) => {
     }
 
     const updates = req.body;
+    const keys = Object.keys(updates);
+
+    if (keys.length === 0) {
+      return res.status(400).json({
+        message: "No updates provided"
+      });
+    }
 
     let updateExpression = "SET ";
     const ExpressionAttributeNames = {};
     const ExpressionAttributeValues = {};
 
-    Object.keys(updates).forEach((key, index) => {
-
+    keys.forEach((key, index) => {
       updateExpression += `#${key} = :${key}`;
-
-      if (index !== Object.keys(updates).length - 1) {
+      if (index !== keys.length - 1) {
         updateExpression += ", ";
       }
-
       ExpressionAttributeNames[`#${key}`] = key;
       ExpressionAttributeValues[`:${key}`] = updates[key];
-
     });
 
     const result = await dynamoDB.send(
@@ -475,25 +419,19 @@ const updatePayment = async (req, res) => {
       })
     );
 
-    res.json(result.Attributes);
-
+    return res.json(result.Attributes);
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
 // DELETE /api/payments/:id
 // ----------------------------------------------------
 const deletePayment = async (req, res) => {
-
   try {
-
     const transactionId = req.params.id;
 
     const existing = await dynamoDB.send(
@@ -520,23 +458,16 @@ const deletePayment = async (req, res) => {
       })
     );
 
-    res.json({
+    return res.json({
       message: "Payment deleted successfully"
     });
-
   } catch (error) {
-
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
-// ----------------------------------------------------
-// EXPORTS
-// ----------------------------------------------------
 module.exports = {
   initiatePayment,
   confirmPayment,
@@ -547,4 +478,4 @@ module.exports = {
   getPaymentById,
   updatePayment,
   deletePayment
-};
+};  

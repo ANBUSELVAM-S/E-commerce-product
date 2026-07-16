@@ -1,5 +1,4 @@
 const crypto = require("crypto");
-
 const dynamoDB = require("../config/db");
 
 const {
@@ -16,51 +15,137 @@ const TABLE_NAME = process.env.INVENTORY_TABLE;
 // Create Inventory
 // POST /api/inventory
 // ----------------------------------------------------
+// ----------------------------------------------------
+// CREATE INVENTORY
+// POST /api/inventory
+// ----------------------------------------------------
+// ----------------------------------------------------
+// CREATE INVENTORY
+// POST /api/inventory
+// ----------------------------------------------------
 const createInventory = async (req, res) => {
   try {
+    const {
+      productId,
+      productName,
+      currentStock = 0,
+      reservedStock = 0,
+      lowStockThreshold = 10
+    } = req.body;
 
-    const inventory = {
-      productId: req.body.productId,
+    if (
+      !productId ||
+      !productName
+    ) {
+      return res.status(400).json({
+        message:
+          "productId, productName are required"
+      });
+    }
+
+    const currentStockValue =
+      Number(currentStock);
+
+    const reservedStockValue =
+      Number(reservedStock);
+
+    const thresholdValue =
+      Number(lowStockThreshold);
+
+    if (
+      Number.isNaN(currentStockValue) ||
+      Number.isNaN(reservedStockValue) ||
+      Number.isNaN(thresholdValue)
+    ) {
+      return res.status(400).json({
+        message:
+          "Stock values must be valid numbers"
+      });
+    }
+
+    if (
+      currentStockValue < 0 ||
+      reservedStockValue < 0 ||
+      thresholdValue < 0
+    ) {
+      return res.status(400).json({
+        message:
+          "Stock values cannot be negative"
+      });
+    }
+
+    if (
+      reservedStockValue > currentStockValue
+    ) {
+      return res.status(400).json({
+        message:
+          "Reserved stock cannot be greater than current stock"
+      });
+    }
+
+    const createdAt =
+      new Date().toISOString();
+
+    const item = {
+      productId,
       inventoryId: crypto.randomUUID(),
-      productName: req.body.productName,
-      sku: req.body.sku,
-      warehouseLocation: req.body.warehouseLocation,
-      currentStock: req.body.currentStock || 0,
-      reservedStock: req.body.reservedStock || 0,
-      lowStockThreshold: req.body.lowStockThreshold || 10,
+      productName,
+      currentStock: currentStockValue,
+      reservedStock: reservedStockValue,
+      lowStockThreshold: thresholdValue,
       availableStock:
-        (req.body.currentStock || 0) -
-        (req.body.reservedStock || 0),
-      movements: [],
-      createdAt: new Date().toISOString()
+        currentStockValue -
+        reservedStockValue,
+
+      movements: [
+        {
+          movementId: crypto.randomUUID(),
+          type: "initial",
+          quantity: currentStockValue,
+          reason:
+            "Initial inventory created with product",
+          date: createdAt
+        }
+      ],
+
+      createdAt,
+      updatedAt: createdAt
     };
 
     await dynamoDB.send(
       new PutCommand({
         TableName: TABLE_NAME,
-        Item: inventory
+        Item: item,
+
+        // Avoid duplicate inventory for same product
+        ConditionExpression:
+          "attribute_not_exists(productId)"
       })
     );
 
-    res.status(201).json(inventory);
-
+    return res.status(201).json(item);
   } catch (error) {
+    if (
+      error.name ===
+      "ConditionalCheckFailedException"
+    ) {
+      return res.status(409).json({
+        message:
+          "Inventory already exists for this product"
+      });
+    }
 
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
 };
-
 // ----------------------------------------------------
 // Get All Inventory
 // GET /api/inventory
 // ----------------------------------------------------
 const getAllInventory = async (req, res) => {
-
   try {
-
     const result = await dynamoDB.send(
       new ScanCommand({
         TableName: TABLE_NAME
@@ -70,23 +155,27 @@ const getAllInventory = async (req, res) => {
     let items = result.Items || [];
 
     if (req.query.lowStock === "true") {
-
-      items = items.filter(item =>
-        item.availableStock <= item.lowStockThreshold
+      items = items.filter(
+        item =>
+          Number(item.availableStock) <=
+          Number(item.lowStockThreshold)
       );
-
     }
 
-    res.json(items);
+    items.sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt) -
+        new Date(a.updatedAt || a.createdAt)
+    );
 
+    return res.status(200).json(items);
   } catch (error) {
+    console.error("getAllInventory error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
@@ -94,74 +183,66 @@ const getAllInventory = async (req, res) => {
 // GET /api/inventory/product/:productId
 // ----------------------------------------------------
 const getInventoryByProductId = async (req, res) => {
-
   try {
+    const productId = req.params.productId;
 
     const result = await dynamoDB.send(
       new GetCommand({
         TableName: TABLE_NAME,
         Key: {
-          productId: req.params.productId
+          productId
         }
       })
     );
 
     if (!result.Item) {
-
-      return res.status(404).json({
-        message: "Inventory not found"
-      });
-
-    }
-
-    res.json(result.Item);
-
-  } catch (error) {
-
-    res.status(500).json({
-      message: error.message
-    });
-
-  }
-
-};
-
-// ----------------------------------------------------
-// Get Inventory By inventoryId
-// GET /api/inventory/:id
-// ----------------------------------------------------
-const getInventoryById = async (req, res) => {
-
-  try {
-
-    const result = await dynamoDB.send(
-      new ScanCommand({
-        TableName: TABLE_NAME
-      })
-    );
-
-    const item = result.Items.find(
-      x => x.inventoryId === req.params.id
-    );
-
-    if (!item) {
-
       return res.status(404).json({
         message: "Inventory item not found"
       });
-
     }
 
-    res.json(item);
-
+    return res.status(200).json(result.Item);
   } catch (error) {
+    console.error("getInventoryByProductId error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
+};
 
+// ----------------------------------------------------
+// Get Inventory By InventoryId
+// GET /api/inventory/id/:inventoryId
+// ----------------------------------------------------
+const getInventoryById = async (req, res) => {
+  try {
+    const result = await dynamoDB.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "inventoryId = :inventoryId",
+        ExpressionAttributeValues: {
+          ":inventoryId": req.params.inventoryId
+        }
+      })
+    );
+
+    const item = result.Items?.[0];
+
+    if (!item) {
+      return res.status(404).json({
+        message: "Inventory item not found"
+      });
+    }
+
+    return res.status(200).json(item);
+  } catch (error) {
+    console.error("getInventoryById error:", error);
+
+    return res.status(500).json({
+      message: error.message
+    });
+  }
 };
 
 // ----------------------------------------------------
@@ -169,31 +250,75 @@ const getInventoryById = async (req, res) => {
 // PUT /api/inventory/:productId
 // ----------------------------------------------------
 const updateInventory = async (req, res) => {
-
   try {
+    const productId = req.params.productId;
 
-    const result = await dynamoDB.send(
+    const existing = await dynamoDB.send(
       new GetCommand({
         TableName: TABLE_NAME,
         Key: {
-          productId: req.params.productId
+          productId
         }
       })
     );
 
-    if (!result.Item) {
+    if (!existing.Item) {
       return res.status(404).json({
         message: "Inventory item not found"
       });
     }
 
+    const allowedUpdates = [
+      "productName",
+      "currentStock",
+      "reservedStock",
+      "lowStockThreshold"
+    ];
+
     const item = {
-      ...result.Item,
-      ...req.body
+      ...existing.Item
     };
+
+    for (const key of allowedUpdates) {
+      if (req.body[key] !== undefined) {
+        item[key] = req.body[key];
+      }
+    }
+
+    item.currentStock = Number(item.currentStock);
+    item.reservedStock = Number(item.reservedStock);
+    item.lowStockThreshold = Number(item.lowStockThreshold);
+
+    if (
+      Number.isNaN(item.currentStock) ||
+      Number.isNaN(item.reservedStock) ||
+      Number.isNaN(item.lowStockThreshold)
+    ) {
+      return res.status(400).json({
+        message: "Stock values must be valid numbers"
+      });
+    }
+
+    if (
+      item.currentStock < 0 ||
+      item.reservedStock < 0 ||
+      item.lowStockThreshold < 0
+    ) {
+      return res.status(400).json({
+        message: "Stock values cannot be negative"
+      });
+    }
+
+    if (item.reservedStock > item.currentStock) {
+      return res.status(400).json({
+        message: "reservedStock cannot be greater than currentStock"
+      });
+    }
 
     item.availableStock =
       item.currentStock - item.reservedStock;
+
+    item.updatedAt = new Date().toISOString();
 
     await dynamoDB.send(
       new PutCommand({
@@ -202,16 +327,14 @@ const updateInventory = async (req, res) => {
       })
     );
 
-    res.json(item);
-
+    return res.status(200).json(item);
   } catch (error) {
+    console.error("updateInventory error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
@@ -219,19 +342,19 @@ const updateInventory = async (req, res) => {
 // DELETE /api/inventory/:productId
 // ----------------------------------------------------
 const deleteInventory = async (req, res) => {
-
   try {
+    const productId = req.params.productId;
 
-    const result = await dynamoDB.send(
+    const existing = await dynamoDB.send(
       new GetCommand({
         TableName: TABLE_NAME,
         Key: {
-          productId: req.params.productId
+          productId
         }
       })
     );
 
-    if (!result.Item) {
+    if (!existing.Item) {
       return res.status(404).json({
         message: "Inventory item not found"
       });
@@ -241,23 +364,21 @@ const deleteInventory = async (req, res) => {
       new DeleteCommand({
         TableName: TABLE_NAME,
         Key: {
-          productId: req.params.productId
+          productId
         }
       })
     );
 
-    res.json({
+    return res.status(200).json({
       message: "Inventory item deleted successfully"
     });
-
   } catch (error) {
+    console.error("deleteInventory error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
@@ -265,100 +386,206 @@ const deleteInventory = async (req, res) => {
 // PATCH /api/inventory/:productId/adjust
 // ----------------------------------------------------
 const adjustStock = async (req, res) => {
-
   try {
+    const productId = req.params.productId;
 
-    const { type, quantity, reason } = req.body;
+    const {
+      type,
+      quantity,
+      reason
+    } = req.body;
+
+    const allowedTypes = [
+      "addition",
+      "removal",
+      "reservation",
+      "release",
+      "adjustment"
+    ];
+
+    if (!type || quantity === undefined) {
+      return res.status(400).json({
+        message: "type and quantity are required"
+      });
+    }
+
+    if (!allowedTypes.includes(type)) {
+      return res.status(400).json({
+        message:
+          "Invalid adjustment type. Use addition, removal, reservation, release, or adjustment"
+      });
+    }
+
+    const numericQuantity = Number(quantity);
+
+    if (
+      Number.isNaN(numericQuantity) ||
+      numericQuantity <= 0
+    ) {
+      return res.status(400).json({
+        message: "quantity must be greater than 0"
+      });
+    }
+
+    console.log("Adjusting inventory:", {
+      productId,
+      type,
+      quantity: numericQuantity,
+      reason
+    });
 
     const result = await dynamoDB.send(
       new GetCommand({
         TableName: TABLE_NAME,
         Key: {
-          productId: req.params.productId
+          productId
         }
       })
     );
 
     if (!result.Item) {
+      console.error(
+        "Inventory item not found for productId:",
+        productId
+      );
+
       return res.status(404).json({
-        message: "Inventory item not found"
+        message: `Inventory item not found for productId: ${productId}`
       });
     }
 
     const item = result.Item;
 
-    let currentStock = item.currentStock;
-    let reservedStock = item.reservedStock;
+    let currentStock = Number(item.currentStock || 0);
+    let reservedStock = Number(item.reservedStock || 0);
 
     switch (type) {
-
       case "addition":
-        currentStock += Number(quantity);
+        currentStock += numericQuantity;
         break;
 
       case "removal":
-        currentStock -= Number(quantity);
+        if (
+          currentStock - reservedStock <
+          numericQuantity
+        ) {
+          return res.status(400).json({
+            message: "Insufficient available stock"
+          });
+        }
+
+        currentStock -= numericQuantity;
         break;
 
       case "reservation":
-        reservedStock += Number(quantity);
+        if (
+          currentStock - reservedStock <
+          numericQuantity
+        ) {
+          return res.status(400).json({
+            message: "Insufficient available stock for reservation"
+          });
+        }
+
+        reservedStock += numericQuantity;
         break;
 
       case "release":
-        reservedStock -= Number(quantity);
+        if (reservedStock < numericQuantity) {
+          return res.status(400).json({
+            message: "Cannot release more than reserved stock"
+          });
+        }
+
+        reservedStock -= numericQuantity;
         break;
 
       case "adjustment":
-        currentStock = Number(quantity);
+        if (numericQuantity < reservedStock) {
+          return res.status(400).json({
+            message:
+              "Adjusted stock cannot be lower than reserved stock"
+          });
+        }
+
+        currentStock = numericQuantity;
         break;
-
-      default:
-        return res.status(400).json({
-          message: "Invalid adjustment type"
-        });
-
     }
 
-    if (
-      currentStock < 0 ||
-      reservedStock < 0 ||
-      currentStock - reservedStock < 0
-    ) {
-      return res.status(400).json({
-        message: "Operation would result in negative stock"
-      });
-    }
+    const availableStock =
+      currentStock - reservedStock;
 
-    item.currentStock = currentStock;
-    item.reservedStock = reservedStock;
-    item.availableStock = currentStock - reservedStock;
-
-    item.movements = item.movements || [];
-
-    item.movements.push({
+    const movement = {
+      movementId: crypto.randomUUID(),
       type,
-      quantity,
-      reason,
+      quantity: numericQuantity,
+      reason: reason || null,
+      previousCurrentStock: Number(
+        item.currentStock || 0
+      ),
+      previousReservedStock: Number(
+        item.reservedStock || 0
+      ),
+      newCurrentStock: currentStock,
+      newReservedStock: reservedStock,
+      newAvailableStock: availableStock,
       date: new Date().toISOString()
-    });
+    };
 
-    await dynamoDB.send(
-      new PutCommand({
+    const movements = [
+      ...(item.movements || []),
+      movement
+    ];
+
+    const updateResult = await dynamoDB.send(
+      new UpdateCommand({
         TableName: TABLE_NAME,
-        Item: item
+        Key: {
+          productId
+        },
+        UpdateExpression:
+          "SET currentStock = :currentStock, " +
+          "reservedStock = :reservedStock, " +
+          "availableStock = :availableStock, " +
+          "movements = :movements, " +
+          "updatedAt = :updatedAt",
+        ExpressionAttributeValues: {
+          ":currentStock": currentStock,
+          ":reservedStock": reservedStock,
+          ":availableStock": availableStock,
+          ":movements": movements,
+          ":updatedAt": new Date().toISOString()
+        },
+        ConditionExpression:
+          "attribute_exists(productId)",
+        ReturnValues: "ALL_NEW"
       })
     );
 
-    res.json(item);
+    console.log(
+      "Inventory updated:",
+      updateResult.Attributes
+    );
 
+    return res.status(200).json(
+      updateResult.Attributes
+    );
   } catch (error) {
+    console.error("adjustStock error:", error);
 
-    res.status(500).json({
+    if (
+      error.name ===
+      "ConditionalCheckFailedException"
+    ) {
+      return res.status(404).json({
+        message: "Inventory item not found"
+      });
+    }
+
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
@@ -366,9 +593,7 @@ const adjustStock = async (req, res) => {
 // GET /api/inventory/low-stock
 // ----------------------------------------------------
 const getLowStockItems = async (req, res) => {
-
   try {
-
     const result = await dynamoDB.send(
       new ScanCommand({
         TableName: TABLE_NAME
@@ -376,19 +601,19 @@ const getLowStockItems = async (req, res) => {
     );
 
     const items = (result.Items || []).filter(
-      item => item.availableStock <= item.lowStockThreshold
+      item =>
+        Number(item.availableStock) <=
+        Number(item.lowStockThreshold)
     );
 
-    res.json(items);
-
+    return res.status(200).json(items);
   } catch (error) {
+    console.error("getLowStockItems error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
 // ----------------------------------------------------
@@ -396,45 +621,41 @@ const getLowStockItems = async (req, res) => {
 // GET /api/inventory/:productId/movements
 // ----------------------------------------------------
 const getMovementHistory = async (req, res) => {
-
   try {
+    const productId = req.params.productId;
 
     const result = await dynamoDB.send(
       new GetCommand({
         TableName: TABLE_NAME,
         Key: {
-          productId: req.params.productId
+          productId
         }
       })
     );
 
     if (!result.Item) {
-
       return res.status(404).json({
         message: "Inventory item not found"
       });
-
     }
 
-    const movements = (result.Item.movements || []).sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
+    const movements = (
+      result.Item.movements || []
+    ).sort(
+      (a, b) =>
+        new Date(b.date) - new Date(a.date)
     );
 
-    res.json(movements);
-
+    return res.status(200).json(movements);
   } catch (error) {
+    console.error("getMovementHistory error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: error.message
     });
-
   }
-
 };
 
-// ----------------------------------------------------
-// Exports
-// ----------------------------------------------------
 module.exports = {
   createInventory,
   getAllInventory,

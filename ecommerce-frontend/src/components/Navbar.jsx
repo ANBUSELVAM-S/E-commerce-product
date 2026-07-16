@@ -28,14 +28,20 @@ const NavigationBar = () => {
                 <Nav.Link as={Link} to="/payments" className="dream-nav-link">Payment</Nav.Link>
               </>
             )}
-            <Nav.Link as={Link} to="/footer" className="dream-nav-link">Contact</Nav.Link>
+            
             {user?.role === 'admin' && (
               <>
-                <Nav.Link as={Link} to="/admin/add-product" className="dream-nav-link fw-bold text-success">
+                <Nav.Link as={Link} to="/admin/add-product" className="dream-nav-link fw-bold ">
                   Add Product
                 </Nav.Link>
-                <Nav.Link as={Link} to="/admin/dashboard" className="dream-nav-link fw-bold text-danger">
-                  Admin Dashboard
+                <Nav.Link as={Link} to="/admin/dashboard" className="dream-nav-link fw-bold ">
+                  Dashboard
+                </Nav.Link>
+                <Nav.Link as={Link} to="/admin/inventory" className="dream-nav-link fw-bold ">
+                  Inventory
+                </Nav.Link>
+                <Nav.Link as={Link} to="/admin/users" className="dream-nav-link fw-bold">
+                  Users
                 </Nav.Link>
               </>
             )}

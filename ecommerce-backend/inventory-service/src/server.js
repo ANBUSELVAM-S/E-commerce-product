@@ -5,44 +5,69 @@ const dotenv = require("dotenv");
 const path = require("path");
 const serverless = require("serverless-http");
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-
-process.env.PORT = process.env.INVENTORY_PORT || 5007;
+// Load environment variables from root .env file
+dotenv.config({
+  path: path.resolve(__dirname, "../../.env")
+});
 
 const inventoryRoutes = require("./routes/inventoryRoutes");
 
 const app = express();
 
+// ----------------------------------------------------
+// Middleware
+// ----------------------------------------------------
 app.use(cors());
 app.use(express.json());
 app.use(morgan("dev"));
 
+// ----------------------------------------------------
+// Inventory Routes
+// ----------------------------------------------------
 app.use("/api/inventory", inventoryRoutes);
 
+// ----------------------------------------------------
 // Health Check
+// GET /health
+// ----------------------------------------------------
 app.get("/health", (req, res) => {
-    res.json({
-        status: "ok",
-        service: "inventory-service"
-    });
+  return res.status(200).json({
+    status: "ok",
+    service: "inventory-service"
+  });
 });
 
+// ----------------------------------------------------
 // Test Route
+// GET /test
+// ----------------------------------------------------
 app.get("/test", (req, res) => {
-    res.send("Inventory Service Working");
+  return res.status(200).send(
+    "Inventory Service Working"
+  );
 });
 
-const PORT = process.env.PORT || 5007;
-
+// ----------------------------------------------------
 // Local Development
+// ----------------------------------------------------
+const PORT =
+  process.env.INVENTORY_PORT || 5007;
+
 if (process.env.IS_LOCAL === "true") {
-    app.listen(PORT, () => {
-        console.log(`Inventory service running on port ${PORT}`);
-    });
+  app.listen(PORT, () => {
+    console.log(
+      `Inventory service running on port ${PORT}`
+    );
+  });
 }
 
-// Export for Local
+// ----------------------------------------------------
+// Local Export
+// ----------------------------------------------------
 module.exports = app;
 
-// Export for AWS Lambda
+// ----------------------------------------------------
+// AWS Lambda Export
+// Lambda handler: server.handler
+// ----------------------------------------------------
 module.exports.handler = serverless(app);

@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 const {
@@ -11,46 +11,77 @@ const {
   adjustStock,
   getLowStockItems,
   getMovementHistory
-} = require('../controllers/inventoryController');
+} = require("../controllers/inventoryController");
 
-// ===============================
-// Special Routes
-// ===============================
+// ----------------------------------------------------
+// Special routes must come before /:productId
+// ----------------------------------------------------
 
-// Get Low Stock Items
-router.get('/low-stock', getLowStockItems);
+// GET /api/inventory/low-stock
+router.get(
+  "/low-stock",
+  getLowStockItems
+);
 
-// Get Inventory by Product ID
-router.get('/product/:productId', getInventoryByProductId);
+// GET /api/inventory/id/:id
+router.get(
+  "/id/:id",
+  getInventoryById
+);
 
-// ===============================
-// CRUD Operations
-// ===============================
+// GET /api/inventory/product/:productId
+router.get(
+  "/product/:productId",
+  getInventoryByProductId
+);
 
-// Create Inventory
-// Get All Inventory
+// ----------------------------------------------------
+// Create and get all inventory
+// ----------------------------------------------------
+
+// POST /api/inventory
+// GET /api/inventory
 router
-  .route('/')
+  .route("/")
   .post(createInventory)
   .get(getAllInventory);
 
-// Get Inventory By Product ID
-// Update Inventory
-// Delete Inventory
-router
-  .route('/:productId')
-  .get(getInventoryById)
-  .put(updateInventory)
-  .delete(deleteInventory);
+// ----------------------------------------------------
+// Stock operations
+// ----------------------------------------------------
 
-// ===============================
-// Stock Operations
-// ===============================
+// PATCH /api/inventory/:productId/adjust
+router.patch(
+  "/:productId/adjust",
+  adjustStock
+);
 
-// Adjust Stock
-router.patch('/:productId/adjust', adjustStock);
+// GET /api/inventory/:productId/movements
+router.get(
+  "/:productId/movements",
+  getMovementHistory
+);
 
-// Movement History
-router.get('/:productId/movements', getMovementHistory);
+// ----------------------------------------------------
+// Product inventory CRUD
+// ----------------------------------------------------
+
+// GET /api/inventory/:productId
+router.get(
+  "/:productId",
+  getInventoryByProductId
+);
+
+// PUT /api/inventory/:productId
+router.put(
+  "/:productId",
+  updateInventory
+);
+
+// DELETE /api/inventory/:productId
+router.delete(
+  "/:productId",
+  deleteInventory
+);
 
 module.exports = router;
