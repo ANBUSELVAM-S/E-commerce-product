@@ -19,6 +19,7 @@ import Notifications from './pages/Notifications';
 import AdminAddProduct from './pages/AdminAddProduct';
 import AdminInventory from './pages/AdminInventory';
 import AdminUsers from './pages/AdminUsers';
+import AdminAnalytics from './pages/AdminAnalytics';
 import PaymentsList from './pages/PaymentsList';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -95,6 +96,14 @@ function App() {
                     element={
                       <ProtectedAdminRoute>
                         <AdminUsers />
+                      </ProtectedAdminRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin/analytics" 
+                    element={
+                      <ProtectedAdminRoute>
+                        <AdminAnalytics />
                       </ProtectedAdminRoute>
                     } 
                   />
