@@ -39,35 +39,98 @@ const Checkout = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+  
+    if (!cartId) {
+      toast.error("Cart ID is missing. Please log in again.");
+      return;
+    }
+  
+    if (!userId) {
+      toast.error("User ID is missing. Please log in again.");
+      return;
+    }
+  
+    if (!cart?.items?.length) {
+      toast.error("Your cart is empty.");
+      return;
+    }
+  
+    const orderData = {
+      cartId,
+      userId,
+      shippingAddress: {
+        fullName: formData.fullName.trim(),
+        street: formData.street.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        zipCode: formData.zipCode.trim(),
+        country: formData.country.trim()
+      }
+    };
+  
+    console.log("ORDER REQUEST PAYLOAD:", orderData);
+  
     try {
       setLoading(true);
       setOrderPlaced(true);
-      
-      const orderData = {
-        cartId,
-        userId,
-        shippingAddress: formData
-      };
-      
-      const newOrder = await createOrder(orderData);
-      toast.success('Order placed successfully!');
-      
-      // Cart is cleared by backend, fetch to update state
-      await fetchCart();
-      
-      // Redirect to payment
-      navigate(`/payment/${newOrder.orderId}`);
+  
+      const response = await createOrder(orderData);
+  
+      console.log("ORDER API RESPONSE:", response);
+  
+      const createdOrder = response.order || response;
+      const orderId = createdOrder.orderId;
+  
+      if (!orderId) {
+        throw new Error(
+          "Order ID was not returned by the backend"
+        );
+      }
+  
+      toast.success("Order placed successfully!");
+  
+      try {
+        await fetchCart();
+      } catch (cartError) {
+        console.error(
+          "Cart refresh failed:",
+          cartError
+        );
+      }
+  
+      navigate(`/payment/${orderId}`);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to place order');
-      console.error(error);
-      setLoading(false);
+      console.error("ORDER CREATION ERROR:", {
+        status: error.response?.status,
+        backendResponse: error.response?.data,
+        message: error.message,
+        requestPayload: orderData
+      });
+  
+      toast.error(
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to place order"
+      );
+  
       setOrderPlaced(false);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const subtotal = cart.totalPrice || 0;
-  const shippingCharge = 50;
-  const totalAmount = subtotal + shippingCharge;
+  const subtotal =
+  Number(cart.subtotal ?? cart.totalPrice) ||
+  cart.items.reduce(
+    (total, item) =>
+      total +
+      Number(item.price) *
+        Number(item.quantity),
+    0
+  );
+
+const shippingCharge = 50;
+const totalAmount = subtotal + shippingCharge;
 
   return (
     <Row className="g-4">
@@ -141,7 +204,7 @@ const Checkout = () => {
             <hr />
             <div className="d-flex justify-content-between mb-2 text-muted">
               <span>Subtotal</span>
-              <span>${totalAmount.toFixed(2)}</span>
+              <span>${subtotal.toFixed(2)}</span>
             </div>
             <div className="d-flex justify-content-between mb-3 text-muted">
               <span>Shipping Charge</span>
@@ -150,7 +213,7 @@ const Checkout = () => {
             <hr />
             <div className="d-flex justify-content-between mb-0">
               <span className="fw-bold fs-5">Total</span>
-              <span className="fw-bold fs-5 text-success">${totalAmount.toFixed(2)}</span>
+              <span className="fw-bold fs-5 text-success">${subtotal.toFixed(2)}</span>
             </div>
           </Card.Body>
         </Card>

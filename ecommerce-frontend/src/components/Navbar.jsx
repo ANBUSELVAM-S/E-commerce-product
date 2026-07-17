@@ -22,7 +22,7 @@ const NavigationBar = () => {
           {/* Centered Links */}
           <Nav className="mx-auto">
             <Nav.Link as={Link} to="/" className="dream-nav-link">Home</Nav.Link>
-            {user?.role !== 'admin' && (
+            {user && user.role !== 'admin' && (
               <>
                 <Nav.Link as={Link} to="/orders" className="dream-nav-link">Order</Nav.Link>
                 <Nav.Link as={Link} to="/payments" className="dream-nav-link">Payment</Nav.Link>

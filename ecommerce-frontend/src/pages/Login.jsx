@@ -33,7 +33,7 @@ const Login = () => {
         <Card.Body className="p-5">
           <h3 className="text-center fw-bold mb-4 text-uppercase" style={{ letterSpacing: '2px' }}>Login</h3>
           <Form onSubmit={handleSubmit}>
-            <Form.Group className="mb-4">
+            <Form.Group className="mb-4" controlId="formBasicEmail">
               <Form.Label className="small fw-bold text-uppercase text-muted">Email Address</Form.Label>
               <Form.Control 
                 type="email" 
@@ -43,7 +43,7 @@ const Login = () => {
                 required
               />
             </Form.Group>
-            <Form.Group className="mb-4">
+            <Form.Group className="mb-4" controlId="formBasicPassword">
               <Form.Label className="small fw-bold text-uppercase text-muted">Password</Form.Label>
               <Form.Control 
                 type="password" 

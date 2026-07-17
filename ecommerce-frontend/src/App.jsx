@@ -3,10 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
-import { NotificationProvider } from './context/NotificationContext';
 import NavigationBar from './components/Navbar';
 import Footer from './components/Footer';
-
 // Pages
 import Home from './pages/Home';
 import ProductDetails from './pages/ProductDetails';
@@ -15,7 +13,7 @@ import Checkout from './pages/Checkout';
 import Payment from './pages/Payment';
 import PaymentSuccess from './pages/PaymentSuccess';
 import Orders from './pages/Orders';
-import Notifications from './pages/Notifications';
+
 import AdminAddProduct from './pages/AdminAddProduct';
 import AdminInventory from './pages/AdminInventory';
 import AdminUsers from './pages/AdminUsers';
@@ -45,7 +43,7 @@ function App() {
   return (
     <AuthProvider>
       <CartProvider>
-        <NotificationProvider>
+        
           <Router>
             <div className="d-flex flex-column min-vh-100">
               <NavigationBar />
@@ -63,7 +61,7 @@ function App() {
                   <Route path="/payment/:orderId" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
                   <Route path="/payment-success" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
                   <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-                  <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+                  
                   <Route path="/payments" element={<ProtectedRoute><PaymentsList /></ProtectedRoute>} />
                   
                   {/* Protected Admin Route */}
@@ -113,7 +111,6 @@ function App() {
             </div>
             <ToastContainer position="bottom-right" />
           </Router>
-        </NotificationProvider>
       </CartProvider>
     </AuthProvider>
   );
