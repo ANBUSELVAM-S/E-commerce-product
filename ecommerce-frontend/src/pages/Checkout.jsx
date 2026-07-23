@@ -100,19 +100,28 @@ const Checkout = () => {
   
       navigate(`/payment/${orderId}`);
     } catch (error) {
-      console.error("ORDER CREATION ERROR:", {
+      const errorDetails = {
         status: error.response?.status,
+        statusText: error.response?.statusText,
         backendResponse: error.response?.data,
         message: error.message,
+        requestUrl: error.config?.url,
+        requestMethod: error.config?.method,
         requestPayload: orderData
-      });
-  
+      };
+    
+      console.error(
+        "ORDER CREATION ERROR:",
+        JSON.stringify(errorDetails, null, 2)
+      );
+    
       toast.error(
+        error.response?.data?.error ||
         error.response?.data?.message ||
         error.message ||
         "Failed to place order"
       );
-  
+    
       setOrderPlaced(false);
     } finally {
       setLoading(false);
@@ -204,7 +213,9 @@ const totalAmount = subtotal + shippingCharge;
             <hr />
             <div className="d-flex justify-content-between mb-2 text-muted">
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span className="fw-bold fs-5 text-success">
+  ${totalAmount.toFixed(2)}
+</span>
             </div>
             <div className="d-flex justify-content-between mb-3 text-muted">
               <span>Shipping Charge</span>
