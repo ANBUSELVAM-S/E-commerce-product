@@ -38,7 +38,7 @@ process.env.PAYMENT_TABLE = "test-payments";
 process.env.ORDER_SERVICE_URL = "http://localhost:5003";
 process.env.SNS_TOPIC_ARN = "arn:aws:sns:region:account:topic";
 
-const mockReq = (body = {}, params = {}, query = {}) => ({ body, params, query });
+const mockReq = (body = {}, params = {}, query = {}, headers = {}) => ({ body, params, query, headers });
 const mockRes = () => {
   const res = {};
   res.status = jest.fn().mockReturnValue(res);
@@ -138,7 +138,11 @@ describe("Payment Controller", () => {
       await confirmPayment(req, res);
 
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "success" }));
-      expect(axios.patch).toHaveBeenCalledWith(expect.stringContaining("/api/orders/o1/pay"));
+      expect(axios.patch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/orders/o1/pay"),
+        {},
+        expect.objectContaining({ headers: expect.any(Object) })
+      );
       // SNS mock doesn't need explicit verification since we checked it didn't crash
     });
 

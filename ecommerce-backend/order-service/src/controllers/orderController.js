@@ -26,7 +26,7 @@ const getInventoryServiceUrl = () =>
 // ----------------------------------------------------
 const createOrder = async (req, res) => {
   try {
-    const { cartId, shippingAddress, userId } = req.body;
+    const { cartId, shippingAddress } = req.body;
 
     if (!cartId || !shippingAddress) {
       return res.status(400).json({
@@ -34,12 +34,25 @@ const createOrder = async (req, res) => {
       });
     }
 
+    // Secure userId from verified Cognito sub claim
+    const userId = req.user ? ((req.user.groups.includes("admin") && req.body.userId) ? req.body.userId : req.user.sub) : (req.body.userId || null);
+
+    // Validate cart ownership
+    if (req.user && cartId !== `cart_${userId}` && !req.user.groups.includes("admin")) {
+      return res.status(403).json({
+        message: "Forbidden: You can only checkout your own cart"
+      });
+    }
+
+    // Prepare headers for token propagation
+    const headers = req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {};
+
     // Fetch Cart Summary
     let cartResponse;
-
     try {
       cartResponse = await axios.get(
-        `${getCartServiceUrl()}/api/cart/${cartId}/summary`
+        `${getCartServiceUrl()}/api/cart/${cartId}/summary`,
+        { headers }
       );
     } catch (err) {
       if (err.response && err.response.status === 404) {
@@ -66,7 +79,7 @@ const createOrder = async (req, res) => {
     const order = {
       orderId: randomUUID(),
       cartId,
-      userId: userId || null,
+      userId,
       items: cartData.items,
       subtotal,
       shippingCharge,
@@ -87,27 +100,28 @@ const createOrder = async (req, res) => {
     // Update Product Stock
     const inventoryPromises = cartData.items.map(item =>
       axios.patch(
-        
           `${getInventoryServiceUrl()}/api/inventory/${item.productId}/adjust`,
           {
               type: "removal",
               quantity: item.quantity,
               reason: `Order ${order.orderId}`
-          }
+          },
+          { headers }
       )
-  );
+    );
   
-  try {
-      await Promise.all(inventoryPromises);
-      console.log("Inventory Updated");
-  } catch (err) {
-      console.error("Inventory Update Failed:", err.response?.data || err.message);
-  }
+    try {
+        await Promise.all(inventoryPromises);
+        console.log("Inventory Updated");
+    } catch (err) {
+        console.error("Inventory Update Failed:", err.response?.data || err.message);
+    }
 
     // Clear Cart
     try {
       await axios.delete(
-        `${getCartServiceUrl()}/api/cart/${cartId}/clear`
+        `${getCartServiceUrl()}/api/cart/${cartId}/clear`,
+        { headers }
       );
     } catch (err) {
       console.error("Failed to clear cart:", err.message);
@@ -140,9 +154,13 @@ const getOrders = async (req, res) => {
       );
     }
 
-    if (req.query.userId) {
+    // Secure user filter: normal users can only query/view their own orders
+    const isUserOnly = req.user && !req.user.groups.includes("admin");
+    const targetUserId = isUserOnly ? req.user.sub : req.query.userId;
+
+    if (targetUserId) {
       orders = orders.filter(
-        (order) => order.userId === req.query.userId
+        (order) => order.userId === targetUserId
       );
     }
 
@@ -175,6 +193,13 @@ const getOrderById = async (req, res) => {
     if (!result.Item) {
       return res.status(404).json({
         message: "Order not found"
+      });
+    }
+
+    // Secure order ownership verification
+    if (req.user && result.Item.userId !== req.user.sub && !req.user.groups.includes("admin")) {
+      return res.status(403).json({
+        message: "Forbidden: You cannot access this order"
       });
     }
 

@@ -8,6 +8,10 @@ const {
   cancelOrder,
   payOrder
 } = require('../controllers/orderController');
+const { authenticateToken, authorizeGroups } = require('../middleware/auth');
+
+// Protect all order routes
+router.use(authenticateToken);
 
 router.route('/')
   .post(createOrder)
@@ -15,7 +19,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getOrderById)
-  .delete(deleteOrder);
+  .delete(authorizeGroups(['admin']), deleteOrder);
 
 router.route('/:id/cancel')
   .put(cancelOrder);

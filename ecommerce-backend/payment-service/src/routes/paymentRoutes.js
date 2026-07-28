@@ -11,6 +11,10 @@ const {
   updatePayment,
   deletePayment
 } = require('../controllers/paymentController');
+const { authenticateToken, authorizeGroups } = require('../middleware/auth');
+
+// Protect all payment routes
+router.use(authenticateToken);
 
 // Custom Actions
 router.post('/initiate', initiatePayment);
@@ -25,7 +29,7 @@ router.route('/')
 
 router.route('/:id')
   .get(getPaymentById)
-  .put(updatePayment)
-  .delete(deletePayment);
+  .put(authorizeGroups(['admin']), updatePayment)
+  .delete(authorizeGroups(['admin']), deletePayment);
 
 module.exports = router;

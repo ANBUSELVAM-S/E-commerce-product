@@ -223,7 +223,8 @@ const createProduct = async (req, res) => {
         {
           timeout: 10000,
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            ...(req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {})
           }
         }
       );

@@ -40,10 +40,14 @@ const initiatePayment = async (req, res) => {
       });
     }
 
+    // Prepare headers for token propagation
+    const headers = req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {};
+
     let orderResponse;
     try {
       orderResponse = await axios.get(
-        `${getOrderServiceUrl()}/api/orders/${orderId}`
+        `${getOrderServiceUrl()}/api/orders/${orderId}`,
+        { headers }
       );
     } catch (err) {
       if (err.response?.status === 404) {
@@ -143,9 +147,14 @@ const confirmPayment = async (req, res) => {
       })
     );
 
+    // Propagate auth header to order-service
+    const headers = req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {};
+
     try {
       const response = await axios.patch(
-        `${getOrderServiceUrl()}/api/orders/${transaction.orderId}/pay`
+        `${getOrderServiceUrl()}/api/orders/${transaction.orderId}/pay`,
+        {},
+        { headers }
       );
       console.log("Order Updated:", response.data);
     } catch (err) {
@@ -316,9 +325,13 @@ const getAllPayments = async (req, res) => {
 
     let payments = data.Items || [];
 
-    if (req.query.userId) {
+    // Secure: normal users can only see their own payments
+    const isUserOnly = req.user && !req.user.groups.includes("admin");
+    const targetUserId = isUserOnly ? req.user.sub : req.query.userId;
+
+    if (targetUserId) {
       payments = payments.filter(
-        (payment) => payment.userId === req.query.userId
+        (payment) => payment.userId === targetUserId
       );
     }
 
@@ -351,6 +364,13 @@ const getPaymentById = async (req, res) => {
     if (!result.Item) {
       return res.status(404).json({
         message: "Payment not found"
+      });
+    }
+
+    // Secure: normal users can only view their own payments
+    if (req.user && result.Item.userId !== req.user.sub && !req.user.groups.includes("admin")) {
+      return res.status(403).json({
+        message: "Forbidden: You cannot access this payment"
       });
     }
 

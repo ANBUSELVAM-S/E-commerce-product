@@ -28,7 +28,7 @@ const axios = require("axios");
 process.env.CART_TABLE = "test-carts";
 process.env.PRODUCT_SERVICE_URL = "http://localhost:5001";
 
-const mockReq = (body = {}, params = {}, query = {}) => ({ body, params, query });
+const mockReq = (body = {}, params = {}, query = {}, headers = {}) => ({ body, params, query, headers });
 const mockRes = () => {
   const res = {};
   res.status = jest.fn().mockReturnValue(res);

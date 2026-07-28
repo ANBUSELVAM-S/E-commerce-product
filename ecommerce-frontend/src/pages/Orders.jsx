@@ -63,7 +63,7 @@ const Orders = () => {
         setSelectedPayment(null);
       }
     } catch (err) {
-      console.error('Failed to fetch payment details', err);
+      console.error('Failed to fetch payment details:', err.response?.data || err.message);
       setSelectedPayment(null);
     } finally {
       setPaymentLoading(false);

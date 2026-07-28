@@ -2,7 +2,9 @@ const {
   SignUpCommand, 
   AdminAddUserToGroupCommand, 
   InitiateAuthCommand, 
-  ConfirmSignUpCommand 
+  ConfirmSignUpCommand,
+  GlobalSignOutCommand,
+  RevokeTokenCommand
 } = require("@aws-sdk/client-cognito-identity-provider");
 const { cognitoClient } = require("../config/cognito");
 const jwt = require("jsonwebtoken");
@@ -142,8 +144,37 @@ const login = async (req, res) => {
   }
 };
 
+const logout = async (req, res) => {
+  try {
+    const { accessToken, refreshToken } = req.body;
+    
+    if (!accessToken && !refreshToken) {
+       return res.status(400).json({ message: "Access token or refresh token is required for logout" });
+    }
+
+    if (refreshToken) {
+      const command = new RevokeTokenCommand({
+        ClientId: CLIENT_ID,
+        Token: refreshToken
+      });
+      await cognitoClient.send(command);
+    } else if (accessToken) {
+      const command = new GlobalSignOutCommand({
+        AccessToken: accessToken
+      });
+      await cognitoClient.send(command);
+    }
+    
+    res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout Error:", error);
+    res.status(500).json({ message: error.message || "Failed to logout" });
+  }
+};
+
 module.exports = {
   register,
   confirm,
-  login
+  login,
+  logout
 };

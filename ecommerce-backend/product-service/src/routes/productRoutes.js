@@ -8,17 +8,21 @@ const {
   deleteProduct,
   updateStock
 } = require('../controllers/productController');
+const { authenticateToken, authorizeGroups } = require('../middleware/auth');
+
+// Protect all product routes
+router.use(authenticateToken);
 
 router.route('/')
   .get(getProducts)
-  .post(createProduct);
+  .post(authorizeGroups(['admin']), createProduct);
 
 router.route('/:id')
   .get(getProductById)
-  .put(updateProduct)
-  .delete(deleteProduct);
+  .put(authorizeGroups(['admin']), updateProduct)
+  .delete(authorizeGroups(['admin']), deleteProduct);
 
 router.route('/:id/stock')
-  .patch(updateStock);
+  .patch(authorizeGroups(['admin']), updateStock);
 
 module.exports = router;

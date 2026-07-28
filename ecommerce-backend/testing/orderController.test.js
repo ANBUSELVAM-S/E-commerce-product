@@ -29,7 +29,7 @@ process.env.CART_SERVICE_URL = "http://localhost:5002";
 process.env.PRODUCT_SERVICE_URL = "http://localhost:5001";
 process.env.INVENTORY_SERVICE_URL = "http://localhost:5007";
 
-const mockReq = (body = {}, params = {}, query = {}) => ({ body, params, query });
+const mockReq = (body = {}, params = {}, query = {}, headers = {}) => ({ body, params, query, headers });
 const mockRes = () => {
   const res = {};
   res.status = jest.fn().mockReturnValue(res);
@@ -111,11 +111,13 @@ describe("Order Controller", () => {
       
       expect(axios.patch).toHaveBeenCalledWith(
         expect.stringContaining("/api/inventory/p1/adjust"),
-        expect.objectContaining({ type: "removal", quantity: 2 })
+        expect.objectContaining({ type: "removal", quantity: 2 }),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
       
       expect(axios.delete).toHaveBeenCalledWith(
-        expect.stringContaining("/api/cart/c1/clear")
+        expect.stringContaining("/api/cart/c1/clear"),
+        expect.objectContaining({ headers: expect.any(Object) })
       );
     });
   });

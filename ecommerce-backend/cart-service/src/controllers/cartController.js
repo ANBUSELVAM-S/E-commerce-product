@@ -36,7 +36,10 @@ const createCart = async (req, res) => {
       const { productId, quantity  = 1} = req.body;
 
       const productResponse = await axios.get(
-          `${process.env.PRODUCT_SERVICE_URL}/api/products/${productId}`
+          `${process.env.PRODUCT_SERVICE_URL}/api/products/${productId}`,
+          {
+            headers: req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {}
+          }
       );
 
       const product = productResponse.data;
@@ -168,7 +171,10 @@ const addItem = async (req, res) => {
     } = req.body;
 
     const productResponse = await axios.get(
-      `${process.env.PRODUCT_SERVICE_URL}/api/products/${productId}`
+      `${process.env.PRODUCT_SERVICE_URL}/api/products/${productId}`,
+      {
+        headers: req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {}
+      }
     );
     
     const product = productResponse.data;

@@ -6,4 +6,18 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// Request interceptor to automatically attach the authorization bearer token
+api.interceptors.request.use(
+  (config) => {
+    const accessToken = localStorage.getItem('accessToken');
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 export default api;

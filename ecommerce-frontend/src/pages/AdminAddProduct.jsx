@@ -46,7 +46,7 @@ const AdminAddProduct = () => {
       });
       
     } catch (error) {
-      console.error(error);
+      console.error("FULL ERROR DETAILS:", error.response?.data || error.message);
       toast.error(error.response?.data?.message || 'Failed to add product');
     } finally {
       setLoading(false);

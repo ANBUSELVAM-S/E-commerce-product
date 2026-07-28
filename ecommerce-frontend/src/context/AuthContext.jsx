@@ -32,6 +32,7 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('tokens', JSON.stringify(tokens));
+    localStorage.setItem('accessToken', tokens.accessToken); // Store accessToken directly
     
     // Tie cart to user ID
     const newCartId = `cart_${userData.userId}`;
@@ -43,6 +44,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     localStorage.removeItem('user');
     localStorage.removeItem('tokens');
+    localStorage.removeItem('accessToken'); // Remove accessToken
     
     // Reset cart to a new guest cart
     const newCartId = `cart_${uuidv4().substring(0,8)}`;

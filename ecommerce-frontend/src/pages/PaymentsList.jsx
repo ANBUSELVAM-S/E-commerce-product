@@ -102,7 +102,7 @@ const PaymentsList = () => {
       )}
 
       {/* Payment Details Modal */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered rounded-0>
+      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered className="rounded-0">
         <Modal.Header closeButton className="border-bottom-0 pb-0">
           <Modal.Title className="fw-bold text-uppercase" style={{ letterSpacing: '1px', fontSize: '18px' }}>
             Payment Receipt

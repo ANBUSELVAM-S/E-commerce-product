@@ -21,7 +21,7 @@ const dynamoDB = require("../inventory-service/src/config/db");
 // Set env
 process.env.INVENTORY_TABLE = "test-inventory";
 
-const mockReq = (body = {}, params = {}, query = {}) => ({ body, params, query });
+const mockReq = (body = {}, params = {}, query = {}, headers = {}) => ({ body, params, query, headers });
 const mockRes = () => {
   const res = {};
   res.status = jest.fn().mockReturnValue(res);
