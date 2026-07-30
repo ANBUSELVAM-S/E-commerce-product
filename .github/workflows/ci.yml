@@ -19,94 +19,161 @@ permissions:
   contents: read
 
 jobs:
+  # ==================================================
+  # SECURITY CHECK
+  # ==================================================
   security-check:
     name: Security & File Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Ensure Scripts are Executable
-        run: chmod +x scripts/check-sensitive-files.sh || true
-        
-      - name: Check for sensitive files
-        run: ./scripts/check-sensitive-files.sh
 
+      - name: Validate security script
+        shell: bash
+        run: |
+          if [ ! -f "scripts/check-sensitive-files.sh" ]; then
+            echo "::error::scripts/check-sensitive-files.sh is missing."
+            exit 1
+          fi
+
+          bash -n scripts/check-sensitive-files.sh
+
+      - name: Check for sensitive files
+        shell: bash
+        run: bash scripts/check-sensitive-files.sh
+
+  # ==================================================
+  # FRONTEND CI
+  # ==================================================
   frontend-ci:
     name: Frontend CI
     runs-on: ubuntu-latest
-    needs: security-check
+    timeout-minutes: 20
+
+    needs:
+      - security-check
+
     defaults:
       run:
-        working-directory: ./ecommerce-frontend
-    
+        working-directory: ecommerce-frontend
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
+      - name: Validate frontend files
+        shell: bash
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "::error::Frontend package.json is missing."
+            exit 1
+          fi
+
+          if [ ! -f "package-lock.json" ]; then
+            echo "::error::Frontend package-lock.json is missing."
+            exit 1
+          fi
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './ecommerce-frontend/package-lock.json'
-          
-      - name: Install dependencies
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ecommerce-frontend/package-lock.json
+
+      - name: Install frontend dependencies
         run: npm ci
-        
-      - name: Run lint
+
+      - name: Run frontend lint
+        shell: bash
         run: |
-          if npm run | grep -q "lint"; then
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.lint ? 0 : 1)"; then
             npm run lint
           else
             echo "No frontend lint script configured."
           fi
-          
-      - name: Run unit tests
+
+      - name: Run frontend unit tests
+        shell: bash
         run: |
-          if npm run | grep -q "test"; then
-            npm test -- --run
-          else
+          TEST_SCRIPT=$(node -p "require('./package.json').scripts?.test || ''")
+
+          if [ -z "$TEST_SCRIPT" ]; then
+            echo "No frontend test script configured."
+          elif echo "$TEST_SCRIPT" | grep -qi "no test specified"; then
             echo "No valid frontend test script configured."
-          fi
-          
-      - name: Run coverage
-        run: |
-          if npm run | grep -q "test:coverage"; then
-            npm run test:coverage
+          elif node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.vitest ? 0 : 1)"; then
+            echo "Running frontend Vitest tests..."
+            npm test -- --run
+          elif node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.jest ? 0 : 1)"; then
+            echo "Running frontend Jest tests..."
+            npm test -- --watchAll=false
           else
-            echo "No coverage script configured."
+            echo "Running configured frontend test command..."
+            npm test
           fi
-          
-      - name: Upload coverage artifact
-        if: success() || failure()
+
+      - name: Run frontend coverage
+        shell: bash
+        run: |
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.['test:coverage'] ? 0 : 1)"; then
+            npm run test:coverage
+          elif node -e "const p=require('./package.json'); process.exit(p.scripts?.coverage ? 0 : 1)"; then
+            npm run coverage
+          else
+            echo "No frontend coverage script configured."
+          fi
+
+      - name: Upload frontend coverage
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: frontend-coverage
-          path: ./ecommerce-frontend/coverage/
+          path: ecommerce-frontend/coverage/
           retention-days: 7
           if-no-files-found: ignore
-          
-      - name: Build application
+
+      - name: Build frontend application
         run: npm run build
-        
-      - name: Validate build output
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+
+      - name: Validate frontend build
+        shell: bash
         run: |
           if [ ! -d "dist" ]; then
-            echo "Build command succeeded, but 'dist' directory is missing!"
+            echo "::error::Build completed, but the dist directory is missing."
             exit 1
           fi
-          
-      - name: Upload build artifact
+
+          if [ ! -f "dist/index.html" ]; then
+            echo "::error::dist/index.html is missing."
+            exit 1
+          fi
+
+          echo "Frontend build validation passed."
+
+      - name: Upload frontend build artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: ./ecommerce-frontend/dist/
+          path: ecommerce-frontend/dist/
           retention-days: 7
+          if-no-files-found: error
 
-    backend-ci:
+  # ==================================================
+  # BACKEND CI
+  # Starts only after frontend passes
+  # ==================================================
+  backend-ci:
     name: Backend CI - ${{ matrix.service }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     needs:
       - security-check
@@ -127,74 +194,118 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./ecommerce-backend/${{ matrix.service }}
+        working-directory: ecommerce-backend/${{ matrix.service }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Validate backend service files
+        shell: bash
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "::error::package.json is missing for ${{ matrix.service }}."
+            exit 1
+          fi
+
+          if [ ! -f "package-lock.json" ]; then
+            echo "::error::package-lock.json is missing for ${{ matrix.service }}."
+            exit 1
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: ./ecommerce-backend/${{ matrix.service }}/package-lock.json
+          cache-dependency-path: ecommerce-backend/${{ matrix.service }}/package-lock.json
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: npm ci
 
-      - name: Run lint
+      - name: Run backend lint
+        shell: bash
         run: |
           if node -e "const p=require('./package.json'); process.exit(p.scripts?.lint ? 0 : 1)"; then
             npm run lint
           else
-            echo "No lint script configured for this service."
+            echo "No lint script configured for ${{ matrix.service }}."
           fi
 
-      - name: Run unit tests
+      - name: Run backend unit tests
+        shell: bash
         run: |
           TEST_SCRIPT=$(node -p "require('./package.json').scripts?.test || ''")
 
           if [ -z "$TEST_SCRIPT" ]; then
-            echo "No valid test script configured for this service."
+            echo "No test script configured for ${{ matrix.service }}."
           elif echo "$TEST_SCRIPT" | grep -qi "no test specified"; then
-            echo "No valid test script configured for this service."
-          else
+            echo "No valid test script configured for ${{ matrix.service }}."
+          elif node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.vitest ? 0 : 1)"; then
+            echo "Running Vitest for ${{ matrix.service }}..."
+            npm test -- --run
+          elif node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.jest ? 0 : 1)"; then
+            echo "Running Jest for ${{ matrix.service }}..."
             npm test -- --runInBand
+          else
+            echo "Running configured test command for ${{ matrix.service }}..."
+            npm test
           fi
 
-      - name: Validate Lambda Handler
+      - name: Validate Lambda handler
         working-directory: ${{ github.workspace }}
         shell: bash
         run: |
+          if [ ! -f "scripts/validate-lambda-handler.sh" ]; then
+            echo "::error::scripts/validate-lambda-handler.sh is missing."
+            exit 1
+          fi
+
           bash -n scripts/validate-lambda-handler.sh
           bash scripts/validate-lambda-handler.sh "${{ matrix.service }}"
-        
+
+  # ==================================================
+  # CI SUMMARY
+  # ==================================================
   ci-summary:
     name: CI Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [security-check, frontend-ci, backend-ci]
+
+    needs:
+      - security-check
+      - frontend-ci
+      - backend-ci
+
     if: always()
+
     steps:
-      - name: Check pipeline success
+      - name: Display pipeline results
+        shell: bash
         run: |
-          echo "Frontend CI: ${{ needs.frontend-ci.result }}"
-          echo "Backend CI: ${{ needs.backend-ci.result }}"
           echo "Security Check: ${{ needs.security-check.result }}"
-          
-          if [ "${{ needs.frontend-ci.result }}" != "success" ]; then
-            echo "Pipeline failed because frontend-ci failed."
+          echo "Frontend CI:   ${{ needs.frontend-ci.result }}"
+          echo "Backend CI:    ${{ needs.backend-ci.result }}"
+
+      - name: Verify complete CI pipeline
+        shell: bash
+        run: |
+          SECURITY_RESULT="${{ needs.security-check.result }}"
+          FRONTEND_RESULT="${{ needs.frontend-ci.result }}"
+          BACKEND_RESULT="${{ needs.backend-ci.result }}"
+
+          if [ "$SECURITY_RESULT" != "success" ]; then
+            echo "::error::Pipeline failed because the security check failed."
             exit 1
           fi
-          
-          if [ "${{ needs.backend-ci.result }}" != "success" ]; then
-            echo "Pipeline failed because backend-ci failed."
+
+          if [ "$FRONTEND_RESULT" != "success" ]; then
+            echo "::error::Pipeline failed because frontend CI failed."
             exit 1
           fi
-          
-          if [ "${{ needs.security-check.result }}" != "success" ]; then
-            echo "Pipeline failed because security-check failed."
+
+          if [ "$BACKEND_RESULT" != "success" ]; then
+            echo "::error::Pipeline failed because one or more backend services failed."
             exit 1
           fi
-          
-          echo "All checks passed successfully!"
+
+          echo "All frontend, backend, and security checks passed successfully."
