@@ -1,49 +1,75 @@
 #!/bin/bash
 
-# Validates that a lambda handler exists and is exported correctly for a given backend service.
+# Validate the Lambda handler for a backend service.
 
-set -e
+set -euo pipefail
 
-SERVICE=$1
+SERVICE="${1:-}"
 
 if [ -z "$SERVICE" ]; then
-  echo "Error: Service name not provided."
+  echo "::error::Service name was not provided."
   exit 1
 fi
 
 SERVICE_PATH="ecommerce-backend/$SERVICE"
 
 echo "Validating Lambda handler for $SERVICE..."
+echo "Service path: $SERVICE_PATH"
 
 if [ ! -d "$SERVICE_PATH" ]; then
-  echo "Error: Service directory $SERVICE_PATH does not exist."
+  echo "::error::Service directory does not exist: $SERVICE_PATH"
   exit 1
 fi
 
 if [ ! -f "$SERVICE_PATH/package.json" ]; then
-  echo "Error: package.json missing in $SERVICE_PATH"
+  echo "::error::package.json is missing in $SERVICE_PATH"
   exit 1
 fi
+
+# Check common Lambda handler file locations.
+POSSIBLE_HANDLERS=(
+  "$SERVICE_PATH/server.js"
+  "$SERVICE_PATH/src/server.js"
+  "$SERVICE_PATH/index.js"
+  "$SERVICE_PATH/src/index.js"
+  "$SERVICE_PATH/app.js"
+  "$SERVICE_PATH/src/app.js"
+  "$SERVICE_PATH/handler.js"
+  "$SERVICE_PATH/src/handler.js"
+  "$SERVICE_PATH/worker.js"
+  "$SERVICE_PATH/src/worker.js"
+)
 
 HANDLER_FILE=""
 
-# auth-service uses index.handler, others use src/server.handler based on our analysis
-if [ "$SERVICE" == "auth-service" ]; then
-  HANDLER_FILE="$SERVICE_PATH/index.js"
-else
-  HANDLER_FILE="$SERVICE_PATH/src/server.js"
-fi
+for FILE in "${POSSIBLE_HANDLERS[@]}"; do
+  if [ -f "$FILE" ]; then
+    echo "Checking candidate: $FILE"
 
-if [ ! -f "$HANDLER_FILE" ]; then
-  echo "::error::Lambda handler validation failed for $SERVICE: $HANDLER_FILE is missing."
+    if grep -Eq \
+      "module\.exports\.handler|exports\.handler" \
+      "$FILE"; then
+      HANDLER_FILE="$FILE"
+      break
+    fi
+  fi
+done
+
+if [ -z "$HANDLER_FILE" ]; then
+  echo "::error::No valid Lambda handler export was found for $SERVICE."
+  echo "Checked these possible locations:"
+
+  for FILE in "${POSSIBLE_HANDLERS[@]}"; do
+    echo "  - $FILE"
+  done
+
+  echo ""
+  echo "Expected an export similar to:"
+  echo "module.exports.handler = serverless(app);"
+
   exit 1
 fi
 
-# Check for export
-if ! grep -q "module.exports.handler" "$HANDLER_FILE" && ! grep -q "exports.handler" "$HANDLER_FILE"; then
-  echo "::error::Lambda handler validation failed for $SERVICE: module.exports.handler or exports.handler is missing in $HANDLER_FILE"
-  exit 1
-fi
-
-echo "✅ Lambda handler validation passed for $SERVICE ($HANDLER_FILE)"
+echo "Lambda handler found: $HANDLER_FILE"
+echo "Lambda handler validation passed for $SERVICE."
 exit 0

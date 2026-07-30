@@ -163,8 +163,11 @@ jobs:
           fi
           
       - name: Validate Lambda Handler
-        run: ../../scripts/validate-lambda-handler.sh ${{ matrix.service }}
-        working-directory: ./
+  working-directory: .
+  shell: bash
+  run: |
+    bash -n scripts/validate-lambda-handler.sh
+    bash scripts/validate-lambda-handler.sh "${{ matrix.service }}"
         
   ci-summary:
     name: CI Pipeline Summary
