@@ -1,0 +1,7 @@
+# Terraform variable overrides for local AWS auth
+
+aws_region                  = "ap-southeast-1"
+aws_profile                 = ""
+aws_shared_credentials_file = ""
+project_name                = "anbu-ecommerce"
+environment                 = "dev"
