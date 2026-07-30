@@ -104,12 +104,14 @@ jobs:
           path: ./ecommerce-frontend/dist/
           retention-days: 7
 
-  backend-ci:
+    backend-ci:
     name: Backend CI - ${{ matrix.service }}
     runs-on: ubuntu-latest
+
     needs:
-        - security-check
-        - frontend-ci
+      - security-check
+      - frontend-ci
+
     strategy:
       fail-fast: false
       matrix:
@@ -122,52 +124,51 @@ jobs:
           - order-service
           - payment-service
           - product-service
-          
+
     defaults:
       run:
         working-directory: ./ecommerce-backend/${{ matrix.service }}
-        
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './ecommerce-backend/${{ matrix.service }}/package-lock.json'
-          
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ./ecommerce-backend/${{ matrix.service }}/package-lock.json
+
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Run lint
         run: |
-          if npm run | grep -q "^  lint"; then
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.lint ? 0 : 1)"; then
             npm run lint
           else
             echo "No lint script configured for this service."
           fi
-          
+
       - name: Run unit tests
         run: |
-          if npm run | grep -q "^  test"; then
-            TEST_SCRIPT=$(npm run env | grep "^npm_package_scripts_test=" || true)
-            if echo "$TEST_SCRIPT" | grep -q "Error: no test specified"; then
-               echo "No valid test script configured for this service."
-            else
-               npm test -- --runInBand
-            fi
-          else
+          TEST_SCRIPT=$(node -p "require('./package.json').scripts?.test || ''")
+
+          if [ -z "$TEST_SCRIPT" ]; then
             echo "No valid test script configured for this service."
+          elif echo "$TEST_SCRIPT" | grep -qi "no test specified"; then
+            echo "No valid test script configured for this service."
+          else
+            npm test -- --runInBand
           fi
-          
+
       - name: Validate Lambda Handler
-  working-directory: .
-  shell: bash
-  run: |
-    bash -n scripts/validate-lambda-handler.sh
-    bash scripts/validate-lambda-handler.sh "${{ matrix.service }}"
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          bash -n scripts/validate-lambda-handler.sh
+          bash scripts/validate-lambda-handler.sh "${{ matrix.service }}"
         
   ci-summary:
     name: CI Pipeline Summary
