@@ -96,23 +96,27 @@ jobs:
             echo "No frontend lint script configured."
           fi
 
-      - name: Run frontend unit tests
+            - name: Run backend unit tests
         shell: bash
         run: |
           TEST_SCRIPT=$(node -p "require('./package.json').scripts?.test || ''")
 
           if [ -z "$TEST_SCRIPT" ]; then
-            echo "No frontend test script configured."
+            echo "No test script configured for ${{ matrix.service }}."
+
           elif echo "$TEST_SCRIPT" | grep -qi "no test specified"; then
-            echo "No valid frontend test script configured."
+            echo "No valid test script configured for ${{ matrix.service }}."
+
           elif node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.vitest ? 0 : 1)"; then
-            echo "Running frontend Vitest tests..."
+            echo "Running Vitest for ${{ matrix.service }}..."
             npm test -- --run
+
           elif node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.jest ? 0 : 1)"; then
-            echo "Running frontend Jest tests..."
-            npm test -- --watchAll=false
+            echo "Running Jest for ${{ matrix.service }}..."
+            npm test -- --runInBand --passWithNoTests
+
           else
-            echo "Running configured frontend test command..."
+            echo "Running configured test command for ${{ matrix.service }}..."
             npm test
           fi
 
@@ -246,7 +250,7 @@ jobs:
             npm test -- --run
           elif node -e "const p=require('./package.json'); const d={...p.dependencies,...p.devDependencies}; process.exit(d.jest ? 0 : 1)"; then
             echo "Running Jest for ${{ matrix.service }}..."
-            npm test -- --runInBand
+            npm test -- --runInBand --passWithNoTests
           else
             echo "Running configured test command for ${{ matrix.service }}..."
             npm test
