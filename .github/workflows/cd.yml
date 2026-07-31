@@ -284,11 +284,19 @@ jobs:
             --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
             --paths "/*" \
             --query 'Invalidation.Id' \
-            --output text)
-          echo "Created invalidation $INVALIDATION_ID"
-          echo "invalidation_id=$INVALIDATION_ID" >> $GITHUB_OUTPUT
+            --output text 2> cf_error.log || echo "failed")
+            
+          if [ "$INVALIDATION_ID" == "failed" ]; then
+            echo "::warning::CloudFront invalidation failed. This is likely blocked by AWS Academy permissions."
+            cat cf_error.log || true
+            echo "invalidation_id=none" >> $GITHUB_OUTPUT
+          else
+            echo "Created invalidation $INVALIDATION_ID"
+            echo "invalidation_id=$INVALIDATION_ID" >> $GITHUB_OUTPUT
+          fi
 
       - name: Wait for Invalidation
+        if: steps.invalidate.outputs.invalidation_id != 'none'
         run: |
           aws cloudfront wait invalidation-completed \
             --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
