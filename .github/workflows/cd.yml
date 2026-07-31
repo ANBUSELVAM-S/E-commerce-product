@@ -14,10 +14,9 @@ on:
       target_service:
         description: "Specific service to deploy (e.g., product-service) or 'all'"
         required: false
-        default: "all"
+        default: "product-service"
 
 permissions:
-  id-token: write
   contents: read
 
 concurrency:
@@ -67,7 +66,7 @@ jobs:
       ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME }}
       PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME }}
       PRODUCT_LAMBDA_NAME: ${{ vars.PRODUCT_LAMBDA_NAME }}
-      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
     steps:
       - name: Checkout exact tested commit
         uses: actions/checkout@v4
@@ -77,13 +76,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Configure AWS Credentials via OIDC
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
 
       - name: Ensure Scripts are Executable
         run: |
@@ -91,11 +92,17 @@ jobs:
           chmod +x scripts/verify-backend-deployment.sh || true
 
       - name: Package Backend Lambdas
-        run: ./scripts/package-backend-lambdas.sh "${{ github.event.inputs.target_service || 'all' }}"
+        env:
+          TARGET_SERVICE: ${{ github.event_name == 'workflow_dispatch' ? (github.event.inputs.target_service || 'product-service') : 'all' }}
+        run: |
+          echo "Target service: $TARGET_SERVICE"
+          ./scripts/package-backend-lambdas.sh "$TARGET_SERVICE"
 
       - name: Deploy Backend Services
+        env:
+          TARGET_SERVICE: ${{ github.event_name == 'workflow_dispatch' ? (github.event.inputs.target_service || 'product-service') : 'all' }}
         run: |
-          TARGET="${{ github.event.inputs.target_service || 'all' }}"
+          TARGET="$TARGET_SERVICE"
           SERVICES=("auth-service" "cart-service" "inventory-service" "notification-service" "notification-worker" "order-service" "payment-service" "product-service")
           
           for SERVICE in "${SERVICES[@]}"; do
@@ -171,15 +178,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: './ecommerce-frontend/package-lock.json'
 
-      - name: Configure AWS Credentials via OIDC
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
 
       - name: Install dependencies
         run: npm ci
