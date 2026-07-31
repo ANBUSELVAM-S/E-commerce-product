@@ -22,7 +22,10 @@ The new CD pipeline (`.github/workflows/cd.yml`) uses `workflow_run` to trigger 
 5. **Summary:** Reports overall deployment status.
 
 ### Manual Deployment Flow
-You can trigger the CD pipeline manually via the GitHub Actions `workflow_dispatch` event. You can optionally provide a specific Commit SHA to deploy.
+You can trigger the CD pipeline manually via the GitHub Actions `workflow_dispatch` event.
+- By default, manual runs target `product-service` only.
+- To deploy all backend services and the frontend, set `target_service` to `all`.
+You can optionally provide a specific Commit SHA to deploy.
 
 ---
 

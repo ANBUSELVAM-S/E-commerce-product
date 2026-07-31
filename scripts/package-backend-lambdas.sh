@@ -17,13 +17,13 @@ mkdir -p "$OUTPUT_DIR"
 
 # Define the exact services we discovered
 SERVICES=(
-  # "auth-service"
-  # "cart-service"
-  # "inventory-service"
-  # "notification-service"
-  # "notification-worker"
-  # "order-service"
-  # "payment-service"
+  "auth-service"
+  "cart-service"
+  "inventory-service"
+  "notification-service"
+  "notification-worker"
+  "order-service"
+  "payment-service"
   "product-service"
 )
 

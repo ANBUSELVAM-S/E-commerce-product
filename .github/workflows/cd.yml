@@ -14,7 +14,7 @@ on:
       target_service:
         description: "Specific service to deploy (e.g., product-service) or 'all'"
         required: false
-        default: "product-service"
+        default: "all"
 
 permissions:
   contents: read
@@ -58,13 +58,13 @@ jobs:
       name: production
       url: ${{ vars.CLOUDFRONT_URL }}
     env:
-      AUTH_LAMBDA_NAME: ${{ vars.AUTH_LAMBDA_NAME }}
-      CART_LAMBDA_NAME: ${{ vars.CART_LAMBDA_NAME }}
-      INVENTORY_LAMBDA_NAME: ${{ vars.INVENTORY_LAMBDA_NAME }}
-      NOTIFICATION_LAMBDA_NAME: ${{ vars.NOTIFICATION_LAMBDA_NAME }}
-      NOTIFICATION_WORKER_LAMBDA_NAME: ${{ vars.NOTIFICATION_WORKER_LAMBDA_NAME }}
-      ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME }}
-      PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME }}
+      # AUTH_LAMBDA_NAME: ${{ vars.AUTH_LAMBDA_NAME }}
+      # CART_LAMBDA_NAME: ${{ vars.CART_LAMBDA_NAME }}
+      # INVENTORY_LAMBDA_NAME: ${{ vars.INVENTORY_LAMBDA_NAME }}
+      # NOTIFICATION_LAMBDA_NAME: ${{ vars.NOTIFICATION_LAMBDA_NAME }}
+      # NOTIFICATION_WORKER_LAMBDA_NAME: ${{ vars.NOTIFICATION_WORKER_LAMBDA_NAME }}
+      # ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME }}
+      # PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME }}
       PRODUCT_LAMBDA_NAME: ${{ vars.PRODUCT_LAMBDA_NAME }}
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
     steps:
