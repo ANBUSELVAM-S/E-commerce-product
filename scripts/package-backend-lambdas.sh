@@ -105,6 +105,7 @@ for SERVICE in "${SERVICES[@]}"; do
   fi
   
   # Cleanup temp directory
+  cd "$ROOT_DIR"
   rm -rf "$TEMP_BUILD_DIR"
   echo "✅ Successfully packaged $SERVICE"
 done

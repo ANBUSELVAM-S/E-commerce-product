@@ -92,34 +92,47 @@ jobs:
           chmod +x scripts/package-backend-lambdas.sh || true
           chmod +x scripts/verify-backend-deployment.sh || true
 
-      - name: Package Backend Lambdas
+      - name: Determine Changed Services
+        id: changed-services
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TARGET="${{ github.event.inputs.target_service || 'product-service' }}"
-            if [ -z "$TARGET" ]; then
-              TARGET="product-service"
-            fi
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+             TARGET="${{ github.event.inputs.target_service || 'all' }}"
+             echo "services=$TARGET" >> $GITHUB_OUTPUT
+             echo "Manual trigger targeting: $TARGET"
           else
-            TARGET="all"
+             # Fetch some history to ensure diff-tree works properly
+             git fetch --depth=2 origin main || true
+             CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD || true)
+             echo "Files changed in this commit:"
+             echo "$CHANGED_FILES"
+             
+             # Extract unique service names from ecommerce-backend/
+             CHANGED_SERVICES=$(echo "$CHANGED_FILES" | grep '^ecommerce-backend/' | awk -F'/' '{print $2}' | sort -u | paste -sd, -)
+             
+             if [ -z "$CHANGED_SERVICES" ]; then
+               echo "No backend services changed. (Will deploy 'none')"
+               echo "services=none" >> $GITHUB_OUTPUT
+             else
+               echo "Changed backend services detected: $CHANGED_SERVICES"
+               echo "services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
+             fi
           fi
-          echo "Target service: $TARGET"
-          ./scripts/package-backend-lambdas.sh "$TARGET"
+
+      - name: Package Backend Lambdas
+        if: steps.changed-services.outputs.services != 'none'
+        run: ./scripts/package-backend-lambdas.sh "${{ steps.changed-services.outputs.services }}"
 
       - name: Deploy Backend Services
+        if: steps.changed-services.outputs.services != 'none'
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TARGET="${{ github.event.inputs.target_service || 'product-service' }}"
-            if [ -z "$TARGET" ]; then
-              TARGET="product-service"
-            fi
-          else
-            TARGET="all"
-          fi
+          TARGET="${{ steps.changed-services.outputs.services }}"
           SERVICES=("auth-service" "cart-service" "inventory-service" "notification-service" "notification-worker" "order-service" "payment-service" "product-service")
           
           for SERVICE in "${SERVICES[@]}"; do
-            if [ "$TARGET" != "all" ] && [ "$TARGET" != "$SERVICE" ]; then
-              continue
+            if [ "$TARGET" != "all" ]; then
+              if [[ ",$TARGET," != *",$SERVICE,"* ]]; then
+                continue
+              fi
             fi
             
             echo "Deploying $SERVICE..."
@@ -183,13 +196,14 @@ jobs:
           done
 
       - name: Run Backend Health Check
+        if: steps.changed-services.outputs.services != 'none'
         run: ./scripts/verify-backend-deployment.sh "${{ vars.BACKEND_HEALTH_CHECK_URL }}"
 
   frontend-deploy:
     name: Frontend Deployment
     runs-on: ubuntu-latest
     needs: [prepare, backend-deploy]
-    if: github.event.inputs.target_service == 'all' || github.event.inputs.target_service == ''
+    if: github.event.inputs.target_service == 'all' || github.event.inputs.target_service == '' || github.event_name == 'workflow_run'
     environment:
       name: production
       url: ${{ vars.CLOUDFRONT_URL }}
