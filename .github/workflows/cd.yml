@@ -14,7 +14,7 @@ on:
       target_service:
         description: "Specific service to deploy (e.g., product-service) or 'all'"
         required: false
-        default: "all"
+        default: "product-service"
 
 permissions:
   contents: read
@@ -58,13 +58,13 @@ jobs:
       name: production
       url: ${{ vars.CLOUDFRONT_URL }}
     env:
-      # AUTH_LAMBDA_NAME: ${{ vars.AUTH_LAMBDA_NAME }}
-      # CART_LAMBDA_NAME: ${{ vars.CART_LAMBDA_NAME }}
-      # INVENTORY_LAMBDA_NAME: ${{ vars.INVENTORY_LAMBDA_NAME }}
-      # NOTIFICATION_LAMBDA_NAME: ${{ vars.NOTIFICATION_LAMBDA_NAME }}
-      # NOTIFICATION_WORKER_LAMBDA_NAME: ${{ vars.NOTIFICATION_WORKER_LAMBDA_NAME }}
-      # ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME }}
-      # PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME }}
+      AUTH_LAMBDA_NAME: ${{ vars.AUTH_LAMBDA_NAME }}
+      CART_LAMBDA_NAME: ${{ vars.CART_LAMBDA_NAME }}
+      INVENTORY_LAMBDA_NAME: ${{ vars.INVENTORY_LAMBDA_NAME }}
+      NOTIFICATION_LAMBDA_NAME: ${{ vars.NOTIFICATION_LAMBDA_NAME }}
+      NOTIFICATION_WORKER_LAMBDA_NAME: ${{ vars.NOTIFICATION_WORKER_LAMBDA_NAME }}
+      ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME }}
+      PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME }}
       PRODUCT_LAMBDA_NAME: ${{ vars.PRODUCT_LAMBDA_NAME }}
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
     steps:
@@ -92,17 +92,28 @@ jobs:
           chmod +x scripts/verify-backend-deployment.sh || true
 
       - name: Package Backend Lambdas
-        env:
-          TARGET_SERVICE: ${{ github.event_name == 'workflow_dispatch' ? (github.event.inputs.target_service || 'product-service') : 'all' }}
         run: |
-          echo "Target service: $TARGET_SERVICE"
-          ./scripts/package-backend-lambdas.sh "$TARGET_SERVICE"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="${{ github.event.inputs.target_service || 'product-service' }}"
+            if [ -z "$TARGET" ]; then
+              TARGET="product-service"
+            fi
+          else
+            TARGET="all"
+          fi
+          echo "Target service: $TARGET"
+          ./scripts/package-backend-lambdas.sh "$TARGET"
 
       - name: Deploy Backend Services
-        env:
-          TARGET_SERVICE: ${{ github.event_name == 'workflow_dispatch' ? (github.event.inputs.target_service || 'product-service') : 'all' }}
         run: |
-          TARGET="$TARGET_SERVICE"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET="${{ github.event.inputs.target_service || 'product-service' }}"
+            if [ -z "$TARGET" ]; then
+              TARGET="product-service"
+            fi
+          else
+            TARGET="all"
+          fi
           SERVICES=("auth-service" "cart-service" "inventory-service" "notification-service" "notification-worker" "order-service" "payment-service" "product-service")
           
           for SERVICE in "${SERVICES[@]}"; do
