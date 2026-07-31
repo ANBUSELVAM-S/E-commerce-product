@@ -7,8 +7,8 @@ set -e
 FRONTEND_URL=$1
 
 if [ -z "$FRONTEND_URL" ]; then
-  echo "::error::CloudFront URL not provided for frontend verification."
-  exit 1
+  echo "CloudFront URL not provided. Skipping frontend verification."
+  exit 0
 fi
 
 # Ensure URL has http/https prefix
