@@ -124,7 +124,17 @@ jobs:
             echo "Deploying $SERVICE..."
             
             # Map folder name to environment variable containing Lambda name
-            VAR_NAME=$(echo "$SERVICE" | tr 'a-z-' 'A-Z_')"_LAMBDA_NAME"
+            case "$SERVICE" in
+              auth-service) VAR_NAME="AUTH_LAMBDA_NAME" ;;
+              cart-service) VAR_NAME="CART_LAMBDA_NAME" ;;
+              inventory-service) VAR_NAME="INVENTORY_LAMBDA_NAME" ;;
+              notification-service) VAR_NAME="NOTIFICATION_LAMBDA_NAME" ;;
+              notification-worker) VAR_NAME="NOTIFICATION_WORKER_LAMBDA_NAME" ;;
+              order-service) VAR_NAME="ORDER_LAMBDA_NAME" ;;
+              payment-service) VAR_NAME="PAYMENT_LAMBDA_NAME" ;;
+              product-service) VAR_NAME="PRODUCT_LAMBDA_NAME" ;;
+              *) VAR_NAME="" ;;
+            esac
             FUNCTION_NAME="${!VAR_NAME}"
             
             if [ -z "$FUNCTION_NAME" ]; then
