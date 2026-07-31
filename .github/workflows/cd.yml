@@ -1,0 +1,277 @@
+name: Full-Stack CD Pipeline
+
+on:
+  workflow_run:
+    workflows:
+      - "Full-Stack CI Pipeline"
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to deploy (leave blank for latest)"
+        required: false
+      target_service:
+        description: "Specific service to deploy (e.g., product-service) or 'all'"
+        required: false
+        default: "all"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: fullstack-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare Deployment
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+    outputs:
+      target_sha: ${{ steps.set-sha.outputs.sha }}
+    steps:
+      - name: Set target SHA
+        id: set-sha
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "sha=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_OUTPUT
+          else
+            if [ -n "${{ github.event.inputs.commit_sha }}" ]; then
+              echo "sha=${{ github.event.inputs.commit_sha }}" >> $GITHUB_OUTPUT
+            else
+              echo "sha=${{ github.sha }}" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  backend-deploy:
+    name: Backend Deployment
+    runs-on: ubuntu-latest
+    needs: prepare
+    environment:
+      name: production
+      url: ${{ vars.CLOUDFRONT_URL }}
+    env:
+      AUTH_LAMBDA_NAME: ${{ vars.AUTH_LAMBDA_NAME }}
+      CART_LAMBDA_NAME: ${{ vars.CART_LAMBDA_NAME }}
+      INVENTORY_LAMBDA_NAME: ${{ vars.INVENTORY_LAMBDA_NAME }}
+      NOTIFICATION_LAMBDA_NAME: ${{ vars.NOTIFICATION_LAMBDA_NAME }}
+      NOTIFICATION_WORKER_LAMBDA_NAME: ${{ vars.NOTIFICATION_WORKER_LAMBDA_NAME }}
+      ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME }}
+      PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME }}
+      PRODUCT_LAMBDA_NAME: ${{ vars.PRODUCT_LAMBDA_NAME }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+    steps:
+      - name: Checkout exact tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.target_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Ensure Scripts are Executable
+        run: |
+          chmod +x scripts/package-backend-lambdas.sh || true
+          chmod +x scripts/verify-backend-deployment.sh || true
+
+      - name: Package Backend Lambdas
+        run: ./scripts/package-backend-lambdas.sh "${{ github.event.inputs.target_service || 'all' }}"
+
+      - name: Deploy Backend Services
+        run: |
+          TARGET="${{ github.event.inputs.target_service || 'all' }}"
+          SERVICES=("auth-service" "cart-service" "inventory-service" "notification-service" "notification-worker" "order-service" "payment-service" "product-service")
+          
+          for SERVICE in "${SERVICES[@]}"; do
+            if [ "$TARGET" != "all" ] && [ "$TARGET" != "$SERVICE" ]; then
+              continue
+            fi
+            
+            echo "Deploying $SERVICE..."
+            
+            # Map folder name to environment variable containing Lambda name
+            VAR_NAME=$(echo "$SERVICE" | tr 'a-z-' 'A-Z_')"_LAMBDA_NAME"
+            FUNCTION_NAME="${!VAR_NAME}"
+            
+            if [ -z "$FUNCTION_NAME" ]; then
+              echo "::error::No Lambda function name configured for $SERVICE. Set $VAR_NAME in GitHub Variables."
+              exit 1
+            fi
+            
+            ZIP_PATH="deployment/lambda-packages/$SERVICE.zip"
+            if [ ! -f "$ZIP_PATH" ]; then
+              echo "::error::ZIP file missing for $SERVICE at $ZIP_PATH"
+              exit 1
+            fi
+            
+            # Check if Lambda exists
+            if ! aws lambda get-function --function-name "$FUNCTION_NAME" --region "$AWS_REGION" > /dev/null 2>&1; then
+              echo "::error::Lambda function $FUNCTION_NAME does not exist."
+              exit 1
+            fi
+            
+            # Update code
+            aws lambda update-function-code \
+              --function-name "$FUNCTION_NAME" \
+              --zip-file "fileb://$ZIP_PATH" \
+              --region "$AWS_REGION" > /dev/null
+              
+            echo "Waiting for update to complete..."
+            aws lambda wait function-updated --function-name "$FUNCTION_NAME" --region "$AWS_REGION"
+            
+            # Verify status
+            STATUS=$(aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --region "$AWS_REGION" --query 'LastUpdateStatus' --output text)
+            if [ "$STATUS" != "Successful" ]; then
+              echo "::error::Lambda update failed. LastUpdateStatus: $STATUS"
+              exit 1
+            fi
+            
+            # Optional: Publish version
+            aws lambda publish-version --function-name "$FUNCTION_NAME" --region "$AWS_REGION" > /dev/null
+            
+            echo "✅ Successfully deployed $SERVICE to $FUNCTION_NAME"
+          done
+
+      - name: Run Backend Health Check
+        run: ./scripts/verify-backend-deployment.sh "${{ vars.BACKEND_HEALTH_CHECK_URL }}"
+
+  frontend-deploy:
+    name: Frontend Deployment
+    runs-on: ubuntu-latest
+    needs: [prepare, backend-deploy]
+    if: github.event.inputs.target_service == 'all' || github.event.inputs.target_service == ''
+    environment:
+      name: production
+      url: ${{ vars.CLOUDFRONT_URL }}
+    defaults:
+      run:
+        working-directory: ./ecommerce-frontend
+    steps:
+      - name: Checkout exact tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.target_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './ecommerce-frontend/package-lock.json'
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint (if configured)
+        run: |
+          if npm run | grep -q "lint"; then
+            npm run lint
+          else
+            echo "No frontend lint script configured."
+          fi
+
+      - name: Run unit tests (if configured)
+        run: |
+          if npm run | grep -q "test"; then
+            npm test -- --run --passWithNoTests
+          else
+            echo "No valid frontend test script configured."
+          fi
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+
+      - name: Verify build output
+        run: |
+          if [ ! -d "dist" ] || [ ! -f "dist/index.html" ]; then
+            echo "::error::Frontend build failed or missing expected output (dist/index.html)."
+            exit 1
+          fi
+
+      - name: Upload to S3 (Assets)
+        run: |
+          aws s3 sync dist "s3://${{ vars.FRONTEND_BUCKET }}" \
+            --delete \
+            --exclude "index.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload to S3 (index.html)
+        run: |
+          aws s3 cp dist/index.html "s3://${{ vars.FRONTEND_BUCKET }}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate" \
+            --content-type "text/html"
+
+      - name: Invalidate CloudFront
+        id: invalidate
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "Created invalidation $INVALIDATION_ID"
+          echo "invalidation_id=$INVALIDATION_ID" >> $GITHUB_OUTPUT
+
+      - name: Wait for Invalidation
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --id "${{ steps.invalidate.outputs.invalidation_id }}"
+          echo "✅ CloudFront invalidation completed."
+
+      - name: Ensure Scripts are Executable
+        working-directory: ${{ github.workspace }}
+        run: chmod +x scripts/verify-frontend-deployment.sh || true
+
+      - name: Verify Frontend URL
+        working-directory: ${{ github.workspace }}
+        run: ./scripts/verify-frontend-deployment.sh "${{ vars.CLOUDFRONT_URL }}"
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [backend-deploy, frontend-deploy]
+    if: always()
+    steps:
+      - name: Print Results
+        run: |
+          echo "Backend Deploy:  ${{ needs.backend-deploy.result }}"
+          echo "Frontend Deploy: ${{ needs.frontend-deploy.result }}"
+          
+          if [ "${{ needs.backend-deploy.result }}" != "success" ]; then
+            echo "::error::Deployment failed at backend stage."
+            exit 1
+          fi
+          
+          if [ "${{ needs.frontend-deploy.result }}" != "success" ]; then
+            echo "::error::Deployment failed at frontend stage."
+            exit 1
+          fi
+          
+          echo "🚀 Full-Stack Deployment completed successfully!"
