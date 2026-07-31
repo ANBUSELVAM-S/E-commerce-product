@@ -28,8 +28,10 @@ SERVICES=(
 )
 
 for SERVICE in "${SERVICES[@]}"; do
-  if [ "$TARGET_SERVICE" != "all" ] && [ "$TARGET_SERVICE" != "$SERVICE" ]; then
-    continue
+  if [ "$TARGET_SERVICE" != "all" ]; then
+    if [[ ",$TARGET_SERVICE," != *",$SERVICE,"* ]]; then
+      continue
+    fi
   fi
 
   echo "----------------------------------------"
