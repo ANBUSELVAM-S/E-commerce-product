@@ -58,15 +58,16 @@ jobs:
       name: production
       url: ${{ vars.CLOUDFRONT_URL }}
     env:
-      AUTH_LAMBDA_NAME: ${{ vars.AUTH_LAMBDA_NAME }}
-      CART_LAMBDA_NAME: ${{ vars.CART_LAMBDA_NAME }}
-      INVENTORY_LAMBDA_NAME: ${{ vars.INVENTORY_LAMBDA_NAME }}
-      NOTIFICATION_LAMBDA_NAME: ${{ vars.NOTIFICATION_LAMBDA_NAME }}
-      NOTIFICATION_WORKER_LAMBDA_NAME: ${{ vars.NOTIFICATION_WORKER_LAMBDA_NAME }}
-      ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME }}
-      PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME }}
-      PRODUCT_LAMBDA_NAME: ${{ vars.PRODUCT_LAMBDA_NAME }}
-      AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-1' }}
+      AUTH_LAMBDA_NAME: ${{ vars.AUTH_LAMBDA_NAME || secrets.AUTH_LAMBDA_NAME }}
+      CART_LAMBDA_NAME: ${{ vars.CART_LAMBDA_NAME || secrets.CART_LAMBDA_NAME }}
+      INVENTORY_LAMBDA_NAME: ${{ vars.INVENTORY_LAMBDA_NAME || secrets.INVENTORY_LAMBDA_NAME }}
+      NOTIFICATION_LAMBDA_NAME: ${{ vars.NOTIFICATION_LAMBDA_NAME || secrets.NOTIFICATION_LAMBDA_NAME }}
+      NOTIFICATION_WORKER_LAMBDA_NAME: ${{ vars.NOTIFICATION_WORKER_LAMBDA_NAME || secrets.NOTIFICATION_WORKER_LAMBDA_NAME }}
+      ORDER_LAMBDA_NAME: ${{ vars.ORDER_LAMBDA_NAME || secrets.ORDER_LAMBDA_NAME }}
+      PAYMENT_LAMBDA_NAME: ${{ vars.PAYMENT_LAMBDA_NAME || secrets.PAYMENT_LAMBDA_NAME }}
+      PRODUCT_LAMBDA_NAME: ${{ vars.PRODUCT_LAMBDA_NAME || secrets.PRODUCT_LAMBDA_NAME }}
+      PRODUCT_SERVICE_LAMBDA_NAME: ${{ vars.PRODUCT_SERVICE_LAMBDA_NAME || secrets.PRODUCT_SERVICE_LAMBDA_NAME }}
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION || 'ap-southeast-1' }}
     steps:
       - name: Checkout exact tested commit
         uses: actions/checkout@v4
@@ -136,6 +137,11 @@ jobs:
               *) VAR_NAME="" ;;
             esac
             FUNCTION_NAME="${!VAR_NAME}"
+            
+            if [ -z "$FUNCTION_NAME" ] && [ "$SERVICE" = "product-service" ]; then
+              FUNCTION_NAME="${PRODUCT_SERVICE_LAMBDA_NAME:-}"
+              VAR_NAME="PRODUCT_SERVICE_LAMBDA_NAME"
+            fi
             
             if [ -z "$FUNCTION_NAME" ]; then
               echo "::error::No Lambda function name configured for $SERVICE. Set $VAR_NAME in GitHub Variables."
@@ -299,7 +305,7 @@ jobs:
             exit 1
           fi
           
-          if [ "${{ needs.frontend-deploy.result }}" != "success" ]; then
+          if [ "${{ needs.frontend-deploy.result }}" != "success" ] && [ "${{ needs.frontend-deploy.result }}" != "skipped" ]; then
             echo "::error::Deployment failed at frontend stage."
             exit 1
           fi
