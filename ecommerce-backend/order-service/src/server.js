@@ -28,8 +28,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-//thingkinfhsbdv
-
 // Local Development
 if (process.env.IS_LOCAL === "true") {
   const PORT = process.env.PORT || 5003;

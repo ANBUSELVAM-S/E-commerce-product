@@ -24,8 +24,6 @@ app.get("/health", (req, res) => {
     });
 });
 
-//file created......
-
 app.get("/test", (req, res) => {
     res.send("Notification Service Working");
 });

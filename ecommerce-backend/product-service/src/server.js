@@ -13,6 +13,9 @@ process.env.PORT = process.env.PRODUCT_TABLE;
 
 // connectDB();
 
+// for checking........
+
+//find the error......
 const app = express();
 
 app.use(cors());
