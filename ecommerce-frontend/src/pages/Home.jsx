@@ -67,7 +67,7 @@ const Home = () => {
             <Col md={6}>
               <Row className="g-2 h-100">
                 <Col xs={6} className="category-box" style={{ height: '196px' }}>
-                  <img src="https://cdn-kbogl.nitrocdn.com/AbvhSakynrVOIgIpkGhkwCCbthSKbCeK/assets/images/optimized/rev-a24c7b4/as2.ae/wp-content/uploads/2024/04/What-is-Gadget-Its-Uses-and-Types.webp" className="category-img" alt="Cat 2" />
+                  <img src="https://img.magnific.com/free-photo/galaxy-nature-aesthetic-background-starry-sky-mountain-remixed-media_53876-126761.jpg?semt=ais_test_b&w=740&q=80" className="category-img" alt="Cat 2" />
                 </Col>
                 <Col xs={6} className="category-box" style={{ height: '196px' }}>
                   <img src="https://images.unsplash.com/photo-1509319117193-57bab727e09d?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80" className="category-img" alt="Cat 3" />
