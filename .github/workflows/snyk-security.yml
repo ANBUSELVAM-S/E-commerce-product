@@ -141,7 +141,7 @@ jobs:
   snyk-code:
     name: Snyk Code Scan
     needs: validate-token
-    if: needs.validate-token.outputs.has_token == 'true'
+    if: needs.validate-token.outputs.has_token == 'true' && vars.ENABLE_SNYK_CODE == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
