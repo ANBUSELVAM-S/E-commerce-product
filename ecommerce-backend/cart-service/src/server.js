@@ -40,6 +40,7 @@ if (!process.env.AWS_LAMBDA_FUNCTION_NAME) {
     console.log(`Cart service running on port ${PORT}`);
   });
 }
+// cart ruuning sucessfuly.........
 
 module.exports = app;
 module.exports.handler = serverless(app);
