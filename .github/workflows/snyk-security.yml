@@ -237,7 +237,7 @@ jobs:
           if [ -n "${{ vars.SNYK_ORG_ID }}" ]; then
             ORG_FLAG="--org=${{ vars.SNYK_ORG_ID }}"
           fi
-          snyk monitor --all-projects --dev --detection-depth=4 --project-environment=production --project-lifecycle=production --target-reference=${{ github.ref_name }} $ORG_FLAG
+          snyk monitor --all-projects --dev --detection-depth=4 --target-reference=${{ github.ref_name }} $ORG_FLAG
 
   snyk-summary:
     name: Snyk Security Summary
