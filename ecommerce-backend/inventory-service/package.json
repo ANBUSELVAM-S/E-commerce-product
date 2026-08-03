@@ -29,5 +29,8 @@
     "testEnvironment": "node",
     "clearMocks": true,
     "coverageDirectory": "coverage"
+  },
+  "overrides": {
+    "brace-expansion": "^5.0.8"
   }
 }

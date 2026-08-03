@@ -26,3 +26,5 @@ router.route('/:id/stock')
   .patch(authorizeGroups(['admin']), updateStock);
 
 module.exports = router;
+
+//connecting..........
