@@ -1,0 +1,273 @@
+name: Snyk Security Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+      - develop
+      - development
+  schedule:
+    - cron: "30 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: snyk-security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  validate-token:
+    name: Validate Snyk Token
+    runs-on: ubuntu-latest
+    outputs:
+      has_token: ${{ steps.check_token.outputs.has_token }}
+    steps:
+      - name: Check Token
+        id: check_token
+        run: |
+          if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            if [ "${{ github.event_name }}" != "pull_request" ] || [ "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.repository }}" ]; then
+              echo "::error::SNYK_TOKEN is not configured. Add it under GitHub repository Settings → Secrets and variables → Actions."
+              exit 1
+            else
+              echo "::warning::Skipping Snyk scan for PR from fork because SNYK_TOKEN is unavailable."
+            fi
+          fi
+
+  snyk-open-source:
+    name: Open Source Scan (${{ matrix.project }})
+    needs: validate-token
+    if: needs.validate-token.outputs.has_token == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - ecommerce-frontend
+          - ecommerce-backend
+          - ecommerce-backend/auth-service
+          - ecommerce-backend/cart-service
+          - ecommerce-backend/inventory-service
+          - ecommerce-backend/notification-service
+          - ecommerce-backend/notification-worker
+          - ecommerce-backend/order-service
+          - ecommerce-backend/payment-service
+          - ecommerce-backend/product-service
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+      - name: Validate manifest exists
+        run: |
+          if [ ! -f "${{ matrix.project }}/package.json" ]; then
+            echo "::error::package.json missing in ${{ matrix.project }}"
+            exit 1
+          fi
+          if [ ! -f "${{ matrix.project }}/package-lock.json" ]; then
+            echo "::error::package-lock.json missing in ${{ matrix.project }}"
+            exit 1
+          fi
+      - name: Install dependencies
+        working-directory: ${{ matrix.project }}
+        run: npm ci
+      - name: Setup Snyk
+        uses: snyk/actions/setup@master
+      - name: Snyk Open Source Test
+        id: snyk_test
+        working-directory: ${{ matrix.project }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          ORG_FLAG=""
+          if [ -n "${{ vars.SNYK_ORG_ID }}" ]; then
+            ORG_FLAG="--org=${{ vars.SNYK_ORG_ID }}"
+          fi
+          echo "SNYK_EXIT_CODE=0" >> $GITHUB_ENV
+          snyk test --file=package.json --package-manager=npm --dev --severity-threshold=high --strict-out-of-sync=true --sarif-file-output=snyk-open-source.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ matrix.project }}/snyk-open-source.sarif
+          category: snyk-open-source-${{ matrix.project }}
+      - name: Upload SARIF Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-open-source-${{ strategy.job-index }}
+          path: ${{ matrix.project }}/snyk-open-source.sarif
+          retention-days: 7
+      - name: Fail if vulnerabilities found
+        if: env.SNYK_EXIT_CODE != '0'
+        run: |
+          echo "::error::Snyk found vulnerabilities or encountered an error. Exit code: $SNYK_EXIT_CODE"
+          exit $SNYK_EXIT_CODE
+
+  snyk-monorepo:
+    name: Repository-Wide Scan
+    needs: validate-token
+    if: needs.validate-token.outputs.has_token == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Snyk
+        uses: snyk/actions/setup@master
+      - name: Snyk Test All Projects
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          ORG_FLAG=""
+          if [ -n "${{ vars.SNYK_ORG_ID }}" ]; then
+            ORG_FLAG="--org=${{ vars.SNYK_ORG_ID }}"
+          fi
+          snyk test --all-projects --detection-depth=4 --dev --severity-threshold=high --strict-out-of-sync=true --exclude=node_modules,coverage,dist,build,deployment,.terraform $ORG_FLAG
+
+  snyk-code:
+    name: Snyk Code Scan
+    needs: validate-token
+    if: needs.validate-token.outputs.has_token == 'true' && vars.ENABLE_SNYK_CODE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Snyk
+        uses: snyk/actions/setup@master
+      - name: Snyk Code Test
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          ORG_FLAG=""
+          if [ -n "${{ vars.SNYK_ORG_ID }}" ]; then
+            ORG_FLAG="--org=${{ vars.SNYK_ORG_ID }}"
+          fi
+          echo "SNYK_EXIT_CODE=0" >> $GITHUB_ENV
+          snyk code test --sarif-file-output=snyk-code.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk-code.sarif
+          category: snyk-code
+      - name: Upload SARIF Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-code-report
+          path: snyk-code.sarif
+          retention-days: 7
+      - name: Fail if vulnerabilities found
+        if: env.SNYK_EXIT_CODE != '0'
+        run: exit $SNYK_EXIT_CODE
+
+  snyk-iac:
+    name: Terraform Scan
+    needs: validate-token
+    if: needs.validate-token.outputs.has_token == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Snyk
+        uses: snyk/actions/setup@master
+      - name: Verify Terraform Directory
+        id: check_tf
+        run: |
+          if [ -d "ecommerce-backend/terraform" ]; then
+            echo "has_tf=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_tf=false" >> $GITHUB_OUTPUT
+            echo "No Terraform directory found, skipping."
+          fi
+      - name: Snyk IaC Test
+        if: steps.check_tf.outputs.has_tf == 'true'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          ORG_FLAG=""
+          if [ -n "${{ vars.SNYK_ORG_ID }}" ]; then
+            ORG_FLAG="--org=${{ vars.SNYK_ORG_ID }}"
+          fi
+          echo "SNYK_EXIT_CODE=0" >> $GITHUB_ENV
+          snyk iac test ecommerce-backend/terraform --severity-threshold=high --sarif-file-output=snyk-iac.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
+      - name: Upload SARIF to GitHub Code Scanning
+        if: steps.check_tf.outputs.has_tf == 'true' && always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk-iac.sarif
+          category: snyk-iac
+      - name: Upload SARIF Artifact
+        if: steps.check_tf.outputs.has_tf == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-iac-report
+          path: snyk-iac.sarif
+          retention-days: 7
+      - name: Fail if vulnerabilities found
+        if: steps.check_tf.outputs.has_tf == 'true' && env.SNYK_EXIT_CODE != '0'
+        run: exit $SNYK_EXIT_CODE
+
+  snyk-monitor:
+    name: Snyk Monitor
+    needs: validate-token
+    if: needs.validate-token.outputs.has_token == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Snyk
+        uses: snyk/actions/setup@master
+      - name: Snyk Monitor
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          ORG_FLAG=""
+          if [ -n "${{ vars.SNYK_ORG_ID }}" ]; then
+            ORG_FLAG="--org=${{ vars.SNYK_ORG_ID }}"
+          fi
+          snyk monitor --all-projects --dev --detection-depth=4 --project-environment=production --project-lifecycle=production --target-reference=${{ github.ref_name }} $ORG_FLAG
+
+  snyk-summary:
+    name: Snyk Security Summary
+    needs: [snyk-open-source, snyk-monorepo, snyk-code, snyk-iac, snyk-monitor]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Results
+        run: |
+          echo "Dependency Scan Matrix: ${{ needs.snyk-open-source.result }}"
+          echo "Repository-Wide Scan: ${{ needs.snyk-monorepo.result }}"
+          echo "Snyk Code Scan: ${{ needs.snyk-code.result || 'Skipped' }}"
+          echo "Terraform Scan: ${{ needs.snyk-iac.result }}"
+          echo "Monitor Scan: ${{ needs.snyk-monitor.result || 'Skipped' }}"
+          
+          if [ "${{ needs.snyk-open-source.result }}" != "success" ] && [ "${{ needs.snyk-open-source.result }}" != "skipped" ]; then
+             echo "::error::Dependency scan failed."
+             exit 1
+          fi
+          if [ "${{ needs.snyk-monorepo.result }}" != "success" ] && [ "${{ needs.snyk-monorepo.result }}" != "skipped" ]; then
+             echo "::error::Repository-wide scan failed."
+             exit 1
+          fi
+          if [ "${{ needs.snyk-code.result }}" != "success" ] && [ "${{ needs.snyk-code.result }}" != "skipped" ]; then
+             echo "::error::Snyk Code scan failed."
+             exit 1
+          fi
+          if [ "${{ needs.snyk-iac.result }}" != "success" ] && [ "${{ needs.snyk-iac.result }}" != "skipped" ]; then
+             echo "::error::Terraform scan failed."
+             exit 1
+          fi
+          
+          echo "No high or critical issues were detected by the enabled Snyk scans."

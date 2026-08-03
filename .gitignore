@@ -27,3 +27,9 @@ crash.log
 *.zip
 lambda-packages/
 deployment/
+# Snyk generated files
+security-reports/
+snyk-open-source.sarif
+snyk-code.sarif
+snyk-iac.sarif
+.snyk-cache/
