@@ -1,26 +1,29 @@
 {
-    "name": "ecommerce-backend",
-    "version": "1.0.0",
-    "description": "Root project to run all microservices",
-    "scripts": {
-        "dev": "concurrently \"npm run dev --prefix product-service\" \"npm run dev --prefix cart-service\" \"npm run dev --prefix order-service\" \"npm run dev --prefix payment-service\" \"npm run dev --prefix search-service\" \"npm run dev --prefix notification-service\" \"npm run dev --prefix inventory-service\" \"npm run dev --prefix api-gateway\"",
-        "test": "jest"
-    },
-    "dependencies": {
-        "concurrently": "^8.2.2"
-    },
-    "main": "move-tests.js",
-    "devDependencies": {
-        "@aws-sdk/client-cognito-identity-provider": "^3.1089.0",
-        "@aws-sdk/client-sns": "^3.1089.0",
-        "@aws-sdk/client-sqs": "^3.1089.0",
-        "@aws-sdk/lib-dynamodb": "^3.1089.0",
-        "axios": "^1.18.1",
-        "jest": "^30.4.2",
-        "jsonwebtoken": "^9.0.3"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "type": "commonjs"
+  "name": "ecommerce-backend",
+  "version": "1.0.0",
+  "description": "Root project to run all microservices",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix product-service\" \"npm run dev --prefix cart-service\" \"npm run dev --prefix order-service\" \"npm run dev --prefix payment-service\" \"npm run dev --prefix search-service\" \"npm run dev --prefix notification-service\" \"npm run dev --prefix inventory-service\" \"npm run dev --prefix api-gateway\"",
+    "test": "jest"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "main": "move-tests.js",
+  "devDependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1089.0",
+    "@aws-sdk/client-sns": "^3.1089.0",
+    "@aws-sdk/client-sqs": "^3.1089.0",
+    "@aws-sdk/lib-dynamodb": "^3.1089.0",
+    "axios": "^1.18.1",
+    "jest": "^30.4.2",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "overrides": {
+    "brace-expansion": "^2.0.1"
+  }
 }
