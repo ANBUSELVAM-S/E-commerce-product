@@ -37,12 +37,22 @@ const authenticateToken = async (req, res, next) => {
     const { kid } = decoded.header;
     const { iss } = decoded.payload;
 
-    if (!iss || !iss.startsWith("https://cognito-idp.")) {
+    let issUrl;
+    try {
+      issUrl = new URL(iss);
+    } catch (e) {
+      return res.status(401).json({ message: "Invalid token issuer format" });
+    }
+    
+    // Strictly validate it is an AWS Cognito endpoint to prevent SSRF
+    if (issUrl.protocol !== "https:" || !/^cognito-idp\.[a-z0-9-]+\.amazonaws\.com$/.test(issUrl.hostname)) {
       return res.status(401).json({ message: "Invalid token issuer" });
     }
 
     if (!cachedKeys[iss] || !cachedKeys[iss][kid]) {
-      const response = await axios.get(`${iss}/.well-known/jwks.json`);
+      // Safely construct the URL using the validated origin
+      const jwksUrl = new URL("/.well-known/jwks.json", issUrl.origin).toString();
+      const response = await axios.get(jwksUrl);
       const keys = response.data.keys || [];
       cachedKeys[iss] = {};
       for (const key of keys) {
