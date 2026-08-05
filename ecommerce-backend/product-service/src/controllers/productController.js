@@ -425,6 +425,7 @@ const updateProduct = async (req, res) => {
     });
   }
 };
+//product update successfully...........
 
 // ----------------------------------------------------
 // DELETE PRODUCT
