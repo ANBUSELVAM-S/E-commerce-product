@@ -37,28 +37,33 @@ const authenticateToken = async (req, res, next) => {
     const { kid } = decoded.header;
     const { iss } = decoded.payload;
 
-    // Strict SSRF protection: only allow valid AWS Cognito issuer URLs
-    const cognitoIssuerRegex = /^https:\/\/cognito-idp\.[a-z0-9-]+\.amazonaws\.com\/[a-zA-Z0-9-_]+$/;
-    if (!iss || !cognitoIssuerRegex.test(iss)) {
+    if (!iss || typeof iss !== 'string') {
       return res.status(401).json({ message: "Invalid token issuer" });
     }
 
-    if (!cachedKeys[iss] || !cachedKeys[iss][kid]) {
-      const jwksUrl = `${iss}/.well-known/jwks.json`;
-      const response = await axios.get(jwksUrl);
+    // SSRF Prevention: Strictly validate and reconstruct the URL
+    const match = iss.match(/^https:\/\/(cognito-idp\.[a-z0-9-]+\.amazonaws\.com)\/([a-zA-Z0-9_-]+)$/);
+    if (!match) {
+      return res.status(401).json({ message: "Invalid token issuer format" });
+    }
+    
+    const safeIss = `https://${match[1]}/${match[2]}`;
+
+    if (!cachedKeys[safeIss] || !cachedKeys[safeIss][kid]) {
+      const response = await axios.get(`${safeIss}/.well-known/jwks.json`);
       const keys = response.data.keys || [];
-      cachedKeys[iss] = {};
+      cachedKeys[safeIss] = {};
       for (const key of keys) {
-        cachedKeys[iss][key.kid] = jwkToPem(key);
+        cachedKeys[safeIss][key.kid] = jwkToPem(key);
       }
     }
 
-    const pem = cachedKeys[iss][kid];
+    const pem = cachedKeys[safeIss][kid];
     if (!pem) {
       return res.status(401).json({ message: "Unknown token signing key" });
     }
 
-    const payload = jwt.verify(token, pem, { issuers: [iss] });
+    const payload = jwt.verify(token, pem, { issuers: [safeIss] });
 
     req.user = {
       sub: payload.sub,
