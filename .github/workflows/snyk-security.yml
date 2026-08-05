@@ -70,7 +70,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
           cache: npm
           cache-dependency-path: ${{ matrix.project }}/package-lock.json
       - name: Validate manifest exists
@@ -102,7 +102,7 @@ jobs:
           snyk test --file=package.json --package-manager=npm --dev --severity-threshold=high --strict-out-of-sync=true --sarif-file-output=snyk-open-source.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ matrix.project }}/snyk-open-source.sarif
           category: snyk-open-source-${{ matrix.project }}
@@ -114,15 +114,10 @@ jobs:
           path: ${{ matrix.project }}/snyk-open-source.sarif
           retention-days: 7
       - name: Fail if vulnerabilities found
-        if: always()
+        if: env.SNYK_EXIT_CODE != '0'
         run: |
-          if [ "$SNYK_EXIT_CODE" != "0" ]; then
-            echo "::error::Snyk found vulnerabilities or encountered an error. Exit code: $SNYK_EXIT_CODE"
-            exit $SNYK_EXIT_CODE
-          else
-            echo "No vulnerabilities found! Exit code: 0"
-            exit 0
-          fi
+          echo "::error::Snyk found vulnerabilities or encountered an error. Exit code: $SNYK_EXIT_CODE"
+          exit $SNYK_EXIT_CODE
 
   snyk-monorepo:
     name: Repository-Wide Scan
@@ -145,6 +140,8 @@ jobs:
 
   snyk-code:
     name: Snyk Code Scan
+    needs: validate-token
+    if: needs.validate-token.outputs.has_token == 'true' && vars.ENABLE_SNYK_CODE == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,21 +157,8 @@ jobs:
           fi
           echo "SNYK_EXIT_CODE=0" >> $GITHUB_ENV
           snyk code test --sarif-file-output=snyk-code.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
-          if [ ! -f snyk-code.sarif ] || [ ! -s snyk-code.sarif ]; then
-            echo '{"version":"2.1.0","$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","runs":[{"tool":{"driver":{"name":"SnykCode","rules":[]}},"results":[]}]}' > snyk-code.sarif
-          fi
-      - name: Check SARIF has results
-        id: check_sarif
-        if: always()
-        run: |
-          if [ -f snyk-code.sarif ] && grep -q '"results":\[.\+\]' snyk-code.sarif; then
-            echo "has_results=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_results=false" >> $GITHUB_OUTPUT
-            echo "SARIF file has no results, skipping upload to Code Scanning."
-          fi
       - name: Upload SARIF to GitHub Code Scanning
-        if: always() && steps.check_sarif.outputs.has_results == 'true'
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
@@ -187,15 +171,8 @@ jobs:
           path: snyk-code.sarif
           retention-days: 7
       - name: Fail if vulnerabilities found
-        if: always()
-        run: |
-          if [ "$SNYK_EXIT_CODE" != "0" ]; then
-            echo "::error::Snyk found vulnerabilities or encountered an error. Exit code: $SNYK_EXIT_CODE"
-            exit $SNYK_EXIT_CODE
-          else
-            echo "No vulnerabilities found! Exit code: 0"
-            exit 0
-          fi
+        if: env.SNYK_EXIT_CODE != '0'
+        run: exit $SNYK_EXIT_CODE
 
   snyk-iac:
     name: Terraform Scan
@@ -228,7 +205,7 @@ jobs:
           snyk iac test ecommerce-backend/terraform --severity-threshold=high --sarif-file-output=snyk-iac.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
       - name: Upload SARIF to GitHub Code Scanning
         if: steps.check_tf.outputs.has_tf == 'true' && always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-iac.sarif
           category: snyk-iac
@@ -240,15 +217,8 @@ jobs:
           path: snyk-iac.sarif
           retention-days: 7
       - name: Fail if vulnerabilities found
-        if: steps.check_tf.outputs.has_tf == 'true' && always()
-        run: |
-          if [ "$SNYK_EXIT_CODE" != "0" ]; then
-            echo "::error::Snyk found vulnerabilities or encountered an error. Exit code: $SNYK_EXIT_CODE"
-            exit $SNYK_EXIT_CODE
-          else
-            echo "No vulnerabilities found! Exit code: 0"
-            exit 0
-          fi
+        if: steps.check_tf.outputs.has_tf == 'true' && env.SNYK_EXIT_CODE != '0'
+        run: exit $SNYK_EXIT_CODE
 
   snyk-monitor:
     name: Snyk Monitor
