@@ -70,7 +70,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: ${{ matrix.project }}/package-lock.json
       - name: Validate manifest exists
@@ -102,7 +102,7 @@ jobs:
           snyk test --file=package.json --package-manager=npm --dev --severity-threshold=high --strict-out-of-sync=true --sarif-file-output=snyk-open-source.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ matrix.project }}/snyk-open-source.sarif
           category: snyk-open-source-${{ matrix.project }}
@@ -155,9 +155,12 @@ jobs:
           fi
           echo "SNYK_EXIT_CODE=0" >> $GITHUB_ENV
           snyk code test --sarif-file-output=snyk-code.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
+          if [ ! -f snyk-code.sarif ]; then
+            echo '{"version":"2.1.0","runs":[]}' > snyk-code.sarif
+          fi
       - name: Upload SARIF to GitHub Code Scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: snyk-code.sarif
           category: snyk-code
@@ -203,7 +206,7 @@ jobs:
           snyk iac test ecommerce-backend/terraform --severity-threshold=high --sarif-file-output=snyk-iac.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
       - name: Upload SARIF to GitHub Code Scanning
         if: steps.check_tf.outputs.has_tf == 'true' && always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: snyk-iac.sarif
           category: snyk-iac
