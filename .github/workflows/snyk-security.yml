@@ -155,12 +155,22 @@ jobs:
           fi
           echo "SNYK_EXIT_CODE=0" >> $GITHUB_ENV
           snyk code test --sarif-file-output=snyk-code.sarif $ORG_FLAG || echo "SNYK_EXIT_CODE=$?" >> $GITHUB_ENV
-          if [ ! -f snyk-code.sarif ]; then
-            echo '{"version":"2.1.0","runs":[]}' > snyk-code.sarif
+          if [ ! -f snyk-code.sarif ] || [ ! -s snyk-code.sarif ]; then
+            echo '{"version":"2.1.0","$schema":"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json","runs":[{"tool":{"driver":{"name":"SnykCode","rules":[]}},"results":[]}]}' > snyk-code.sarif
+          fi
+      - name: Check SARIF has results
+        id: check_sarif
+        if: always()
+        run: |
+          if [ -f snyk-code.sarif ] && grep -q '"results":\[.\+\]' snyk-code.sarif; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+            echo "SARIF file has no results, skipping upload to Code Scanning."
           fi
       - name: Upload SARIF to GitHub Code Scanning
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        if: always() && steps.check_sarif.outputs.has_results == 'true'
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk-code.sarif
           category: snyk-code
