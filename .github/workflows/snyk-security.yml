@@ -174,7 +174,7 @@ jobs:
         if: env.SNYK_EXIT_CODE != '0'
         run: |
           echo "::warning::Snyk Code found vulnerabilities (like SSRF), but we are allowing the pipeline to continue."
-          exit 0
+          exit $SNYK_EXIT_CODE
 
   snyk-iac:
     name: Terraform Scan
