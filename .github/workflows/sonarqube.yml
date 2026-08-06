@@ -1,0 +1,59 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Install Frontend Dependencies
+        working-directory: ecommerce-frontend
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          fi
+          
+      - name: Run Frontend Tests and Coverage
+        working-directory: ecommerce-frontend
+        run: npm run test:coverage
+        
+      - name: Install Backend Dependencies
+        working-directory: ecommerce-backend
+        run: |
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          fi
+          
+      - name: Run Backend Tests
+        working-directory: ecommerce-backend
+        run: npm test
+        
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        # Note: sonarqube-quality-gate-action is intentionally omitted 
+        # so this workflow does not block deployments based on baseline issues.
