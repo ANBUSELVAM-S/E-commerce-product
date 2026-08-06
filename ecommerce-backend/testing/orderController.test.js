@@ -60,7 +60,7 @@ describe("Order Controller", () => {
       error.response = { status: 404 };
       axios.get.mockRejectedValueOnce(error);
 
-      const req = mockReq({ cartId: "c1", shippingAddress: {} });
+      const req = mockReq({ cartId: "c1", shippingAddress: {}, userId: "u1" });
       const res = mockRes();
       await createOrder(req, res);
 
@@ -73,7 +73,7 @@ describe("Order Controller", () => {
         data: { items: [], subtotal: 0 }
       });
 
-      const req = mockReq({ cartId: "c1", shippingAddress: {} });
+      const req = mockReq({ cartId: "c1", shippingAddress: {}, userId: "u1" });
       const res = mockRes();
       await createOrder(req, res);
 
