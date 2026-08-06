@@ -32,7 +32,7 @@ jobs:
         working-directory: ecommerce-frontend
         run: |
           if [ -f "package-lock.json" ]; then
-            npm ci
+            npm ci --ignore-scripts
           fi
           
       - name: Run Frontend Tests and Coverage
@@ -43,7 +43,7 @@ jobs:
         working-directory: ecommerce-backend
         run: |
           if [ -f "package-lock.json" ]; then
-            npm ci
+            npm ci --ignore-scripts
           fi
           
       - name: Run Backend Tests
@@ -59,7 +59,7 @@ jobs:
         run: npm test
         
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v7
+        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
