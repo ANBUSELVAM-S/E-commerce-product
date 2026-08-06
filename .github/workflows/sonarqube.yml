@@ -48,6 +48,14 @@ jobs:
           
       - name: Run Backend Tests
         working-directory: ecommerce-backend
+        env:
+          ORDER_TABLE: test-orders
+          CART_TABLE: test-carts
+          PRODUCT_TABLE: test-products
+          INVENTORY_TABLE: test-inventory
+          USER_TABLE: test-users
+          PAYMENT_TABLE: test-payments
+          NOTIFICATION_TABLE: test-notifications
         run: npm test
         
       - name: SonarQube Scan
