@@ -88,6 +88,7 @@ router.put(
 // DELETE /api/inventory/:productId
 router.delete(
   "/:productId",
+  authenticateToken,
   authorizeGroups(["admin"]),
   deleteInventory
 );
