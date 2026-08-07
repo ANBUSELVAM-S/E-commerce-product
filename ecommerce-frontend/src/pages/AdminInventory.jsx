@@ -102,7 +102,10 @@ const AdminInventory = () => {
       try {
         await deleteInventory(itemToDelete.productId);
       } catch (inventoryError) {
-        console.error('Inventory deletion error:', inventoryError);
+        // A 404 means the backend already deleted it, which is expected and fine
+        if (inventoryError.response?.status !== 404) {
+          console.error('Inventory deletion error:', inventoryError);
+        }
       }
       
       toast.success('Deleted successfully');
