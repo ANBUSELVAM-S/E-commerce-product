@@ -433,6 +433,8 @@ const updateProduct = async (req, res) => {
 // ----------------------------------------------------
 const deleteProduct = async (req, res) => {
   try {
+    const inventoryServiceUrl = getInventoryServiceUrl();
+    
     const result = await db.send(
       new DeleteCommand({
         TableName: TABLE,
@@ -448,8 +450,23 @@ const deleteProduct = async (req, res) => {
       })
     );
 
+    // Also delete the associated inventory
+    try {
+      await axios.delete(`${inventoryServiceUrl}/api/inventory/${req.params.id}`, {
+        timeout: 10000,
+        headers: {
+          ...(req.headers['authorization'] ? { Authorization: req.headers['authorization'] } : {})
+        }
+      });
+    } catch (inventoryError) {
+      console.error(
+        "Inventory deletion error:",
+        inventoryError.response?.data || inventoryError.message
+      );
+    }
+
     return res.status(200).json({
-      message: "Product removed successfully",
+      message: "Product and inventory removed successfully",
       product: result.Attributes
     });
   } catch (error) {

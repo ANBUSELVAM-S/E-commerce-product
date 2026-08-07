@@ -24,3 +24,8 @@ export const updateInventory = async (productId, data) => {
   const response = await api.put(`api/inventory/${productId}`, data);
   return response.data;
 };
+
+export const deleteInventory = async (productId) => {
+  const response = await api.delete(`api/inventory/${productId}`);
+  return response.data;
+};

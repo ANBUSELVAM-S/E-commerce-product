@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Card, Table, Badge, Button, Modal, Form } from 'react-bootstrap';
-import { getInventory, adjustStock } from '../services/inventoryService';
-import { getProducts } from '../services/productService';
+import { getInventory, adjustStock, deleteInventory } from '../services/inventoryService';
+import { getProducts, deleteProduct } from '../services/productService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { toast } from 'react-toastify';
 
@@ -11,6 +11,11 @@ const AdminInventory = () => {
   
   const [showModal, setShowModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  
+  // Delete Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   
   // Form State
   const [adjustmentType, setAdjustmentType] = useState('addition');
@@ -76,6 +81,40 @@ const AdminInventory = () => {
     }
   };
 
+  const handleOpenDelete = (item) => {
+    setItemToDelete(item);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!itemToDelete) return;
+    try {
+      setDeleting(true);
+      
+      // Try to delete product (might already be deleted if it was orphaned)
+      try {
+        await deleteProduct(itemToDelete.productId);
+      } catch (productError) {
+        console.warn('Product might already be deleted:', productError);
+      }
+      
+      // Delete the inventory record so it doesn't show up orphaned
+      try {
+        await deleteInventory(itemToDelete.productId);
+      } catch (inventoryError) {
+        console.error('Inventory deletion error:', inventoryError);
+      }
+      
+      toast.success('Deleted successfully');
+      setShowDeleteModal(false);
+      fetchInventory(); // Refresh list
+    } catch (error) {
+      toast.error('Failed to delete');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -126,15 +165,26 @@ const AdminInventory = () => {
                     <td className="py-3 text-center text-muted fw-bold">{item.currentStock}</td>
                     <td className="py-3 text-center text-muted">{item.reservedStock}</td>
                     <td className="px-4 py-3 text-end">
-                      <Button 
-                        variant="outline-dark" 
-                        size="sm" 
-                        className="rounded-0 text-uppercase"
-                        style={{ fontSize: '10px', letterSpacing: '1px' }}
-                        onClick={() => handleOpenUpdate(item)}
-                      >
-                        Update Stock
-                      </Button>
+                      <div className="d-flex gap-2 justify-content-end">
+                        <Button 
+                          variant="outline-dark" 
+                          size="sm" 
+                          className="rounded-0 text-uppercase"
+                          style={{ fontSize: '10px', letterSpacing: '1px' }}
+                          onClick={() => handleOpenUpdate(item)}
+                        >
+                          Update Stock
+                        </Button>
+                        <Button 
+                          variant="outline-danger" 
+                          size="sm" 
+                          className="rounded-0 text-uppercase"
+                          style={{ fontSize: '10px', letterSpacing: '1px' }}
+                          onClick={() => handleOpenDelete(item)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -228,6 +278,56 @@ const AdminInventory = () => {
             </Button>
           </Modal.Footer>
         </Form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
+        <Modal.Header closeButton className="border-bottom-0 pb-0">
+          <Modal.Title className="fw-bold text-uppercase text-danger" style={{ letterSpacing: '1px', fontSize: '18px' }}>
+            Confirm Deletion
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="pt-2 pb-4 px-4">
+          {itemToDelete && (
+            <>
+              <p className="text-muted mb-4">Are you sure you want to delete this product? This action cannot be undone.</p>
+              <div className="mb-2 d-flex align-items-center bg-light p-3 rounded">
+                {itemToDelete.imageUrl && (
+                  <img 
+                    src={itemToDelete.imageUrl} 
+                    alt={itemToDelete.productName} 
+                    style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
+                    className="me-3"
+                  />
+                )}
+                <div>
+                  <h6 className="fw-bold m-0">{itemToDelete.productName}</h6>
+                  <p className="text-muted small m-0">ID: {itemToDelete.productId}</p>
+                </div>
+              </div>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer className="border-top-0 pt-0 px-4 pb-4">
+          <Button 
+            variant="outline-dark" 
+            className="rounded-0 text-uppercase fw-bold"
+            style={{ letterSpacing: '1px' }}
+            onClick={() => setShowDeleteModal(false)}
+            disabled={deleting}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="danger" 
+            className="rounded-0 text-uppercase fw-bold"
+            style={{ letterSpacing: '1px' }}
+            onClick={handleDeleteProduct}
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete Product'}
+          </Button>
+        </Modal.Footer>
       </Modal>
     </Container>
   );

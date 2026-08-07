@@ -98,3 +98,7 @@ cd c:\Product\ecommerce-backend\terraform
 terraform apply
 ```
 This will automatically figure out what changed and deploy everything simultaneously!
+
+
+
+Compress-Archive -Path "ecommerce-backend\product-service\*" -DestinationPath "ecommerce-backend\product-service.zip" -Force
