@@ -16,7 +16,8 @@ jest.mock("../product-service/src/config/db", () => ({
 // Mock axios
 jest.mock("axios", () => ({
   post: jest.fn(),
-  get: jest.fn()
+  get: jest.fn(),
+  delete: jest.fn()
 }));
 
 const db = require("../product-service/src/config/db");
@@ -205,7 +206,7 @@ describe("Product Controller", () => {
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-        message: "Product removed successfully"
+        message: "Product and inventory removed successfully"
       }));
     });
 

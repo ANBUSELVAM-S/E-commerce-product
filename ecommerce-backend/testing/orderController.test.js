@@ -1,4 +1,11 @@
 // Order Service - Controller Unit Tests
+// Set env variables before importing controller
+process.env.ORDER_TABLE = "test-orders";
+process.env.CART_SERVICE_URL = "http://localhost:5002";
+process.env.PRODUCT_SERVICE_URL = "http://localhost:5001";
+process.env.INVENTORY_SERVICE_URL = "http://localhost:5007";
+process.env.PAYMENT_SERVICE_URL = "http://localhost:5005";
+
 const {
   createOrder,
   getOrders,
@@ -22,12 +29,6 @@ jest.mock("axios", () => ({
 
 const dynamoDB = require("../order-service/src/config/db");
 const axios = require("axios");
-
-// Set env vars
-process.env.ORDER_TABLE = "test-orders";
-process.env.CART_SERVICE_URL = "http://localhost:5002";
-process.env.PRODUCT_SERVICE_URL = "http://localhost:5001";
-process.env.INVENTORY_SERVICE_URL = "http://localhost:5007";
 
 const mockReq = (body = {}, params = {}, query = {}, headers = {}) => ({ body, params, query, headers });
 const mockRes = () => {
